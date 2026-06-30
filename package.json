@@ -4,7 +4,7 @@
   "description": "Spotify Wrapped, but it roasts your git repo.",
   "type": "module",
   "bin": {
-    "git-roast": "./dist/cli/index.js"
+    "git-roast": "dist/cli/index.js"
   },
   "files": [
     "dist"
