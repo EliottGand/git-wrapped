@@ -94,12 +94,14 @@ const robotDetector: Stat = {
     interface Suspect { name: string; key: string; isYou: boolean; total: number; sus: number; emDash: number; words: Map<string, number> }
     const scored = new Map<string, Suspect>();
     let repoSus = 0;
+    let repoEmDash = 0;
     for (const c of commits) {
       const key = idKey(c.author);
       const entry = scored.get(key) ?? { name: displayName(c.author), key, isYou: youKey != null && key === youKey, total: 0, sus: 0, emDash: 0, words: new Map() };
       entry.total += 1;
       const em = hasEmDash(c);
       const found = TELL_WORDS.filter((w) => wordRe(w).test(c.subject) || wordRe(w).test(c.body));
+      if (em) repoEmDash += 1;
       if (em || found.length) {
         entry.sus += 1;
         repoSus += 1;
@@ -133,7 +135,7 @@ const robotDetector: Stat = {
         { min: 25, template: `${Who} write${top.isYou ? '' : 's'} ${ratio}% suspiciously polished messages — I count ${evidence}. Real humans type two hyphens and hate themselves.` },
         { min: 0, template: `${Who} occasionally write${top.isYou ? '' : 's'} like a chatbot (${ratio}%) — the giveaway: ${evidence}. Plausible deniability: intact. For now.` },
       ]),
-      data: { name: top.name, isYou: top.isYou, ratio, repoSus, repoRatio, signals },
+      data: { name: top.name, isYou: top.isYou, ratio, repoSus, repoRatio, repoEmDash, signals },
     };
   },
 };

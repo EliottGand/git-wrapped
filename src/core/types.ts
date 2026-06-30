@@ -1,5 +1,5 @@
 /**
- * Core domain types for git-roast.
+ * Core domain types for git-wrapped.
  *
  * IMPORTANT: This module — and everything under `core/` — must stay free of any
  * presentation or runtime concerns (no ink, no chalk, no process.stdout). The only
@@ -44,6 +44,26 @@ export interface Commit {
   files: FileChange[];
 }
 
+/** One TODO/FIXME-style marker found in the working tree. */
+export interface MarkerHit {
+  /** The marker keyword, uppercased: TODO | FIXME | HACK | XXX. */
+  marker: string;
+  path: string;
+  line: number;
+  /** The trimmed source line the marker sits on. */
+  text: string;
+}
+
+/** Counts of leftover-intent markers across tracked text files. */
+export interface MarkerScan {
+  /** Per-marker totals, e.g. { TODO: 42, FIXME: 7 }. */
+  counts: Record<string, number>;
+  /** Grand total across all markers. */
+  total: number;
+  /** A few representative (ideally spicy) example lines. */
+  examples: MarkerHit[];
+}
+
 /** Everything a stat is allowed to read. Built once by `git/extract.ts`. */
 export interface RepoData {
   /** Absolute path to the repository root. */
@@ -54,6 +74,14 @@ export interface RepoData {
   currentUser: Identity | null;
   /** Files currently tracked in the working tree (relative paths). */
   trackedFiles: string[];
+  /**
+   * Raw contents of a small allowlist of "signal" files (manifests, lockless
+   * configs, hook scripts) when present and small. Keyed by repo-relative path.
+   * Stats parse these purely — extraction just hands over the bytes.
+   */
+  signalFiles: Record<string, string>;
+  /** TODO/FIXME/HACK/XXX markers scanned from the working tree. */
+  markers: MarkerScan;
   /** When extraction ran (unix seconds) — injected so core stays free of Date.now ambiguity. */
   generatedAt: number;
 }
@@ -85,7 +113,8 @@ export type StatCategory =
   | 'habits'
   | 'messages'
   | 'smells'
-  | 'code';
+  | 'code'
+  | 'project';
 
 /**
  * A stat is a pure analyzer. Return `null` when the stat does not apply to this

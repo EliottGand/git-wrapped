@@ -44,6 +44,12 @@ export interface Aggregates {
   weekdayHistogram: number[]; // length 7, 0=Sun
   topChurnFiles: FileStat[];
   batman: BatStat[];
+  /** Mean number of files touched per (non-merge) commit. */
+  avgFilesPerCommit: number;
+  /** Commits that touched 15+ files at once — the "god commits". */
+  godCommits: number;
+  /** Most files touched in any single commit. */
+  maxFilesInCommit: number;
 }
 
 const isNight = (hour: number) => hour >= 22 || hour <= 5;
@@ -59,6 +65,9 @@ export function computeAggregates(repo: RepoData): Aggregates {
   const weekdayHistogram = new Array(7).fill(0);
   const churn = new Map<string, number>();
   const langs = new Map<string, number>();
+  let totalFilesTouched = 0;
+  let godCommits = 0;
+  let maxFilesInCommit = 0;
 
   for (const c of commits) {
     const key = idKey(c.author);
@@ -73,6 +82,10 @@ export function computeAggregates(repo: RepoData): Aggregates {
       churn.set(f.path, (churn.get(f.path) ?? 0) + 1);
     }
     authors.set(key, a);
+
+    totalFilesTouched += c.files.length;
+    if (c.files.length >= 15) godCommits += 1;
+    if (c.files.length > maxFilesInCommit) maxFilesInCommit = c.files.length;
 
     hourHistogram[c.authorHourLocal] += 1;
     weekdayHistogram[c.authorWeekdayLocal] += 1;
@@ -124,5 +137,8 @@ export function computeAggregates(repo: RepoData): Aggregates {
     weekdayHistogram,
     topChurnFiles,
     batman: [...bats.values()].sort((x, y) => y.score - x.score),
+    avgFilesPerCommit: totalCommits ? totalFilesTouched / totalCommits : 0,
+    godCommits,
+    maxFilesInCommit,
   };
 }

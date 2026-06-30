@@ -81,7 +81,7 @@ function GateHint({ phase, kind, last }: { phase: 'anim' | 'ready'; kind: Beat['
   else text = last ? '   ↵  leave' : '   ↵  continue';
   return (
     <Box marginTop={1}>
-      <Text color="gray" dimColor>
+      <Text color="whiteBright" bold>
         {text}
       </Text>
     </Box>
@@ -93,7 +93,7 @@ function BeatView({ beat, frozen, skip, onDone }: { beat: Beat; frozen?: boolean
     case 'typewriter':
       return <Typewriter ops={beat.ops} skip={frozen || skip} onDone={onDone} color="cyanBright" />;
     case 'scene':
-      return <SceneView beat={beat} frozen={frozen} onDone={onDone} />;
+      return <SceneView beat={beat} frozen={frozen} skip={skip} onDone={onDone} />;
     case 'share':
       return <ShareView beat={beat} frozen={frozen} onDone={onDone} />;
   }
@@ -107,8 +107,13 @@ function Line({ l }: { l: SceneLine }) {
   );
 }
 
-function SceneView({ beat, frozen, onDone }: { beat: Beat & { kind: 'scene' }; frozen?: boolean; onDone: () => void }) {
+function SceneView({ beat, frozen, skip, onDone }: { beat: Beat & { kind: 'scene' }; frozen?: boolean; skip?: boolean; onDone: () => void }) {
+  // A streamed scene (e.g. THE DIAGNOSIS) types its reveal first, then shows the graph
+  // once the typing settles. Non-streamed scenes keep the original timed reveal.
+  const hasStream = !!(beat.stream && beat.stream.length);
+  const [streamDone, setStreamDone] = useState(!hasStream || !!frozen);
   useEffect(() => {
+    if (hasStream) return; // the Typewriter's onDone drives the transition instead
     const t = setTimeout(onDone, frozen ? 0 : 480);
     return () => clearTimeout(t);
   }, []);
@@ -119,10 +124,20 @@ function SceneView({ beat, frozen, onDone }: { beat: Beat & { kind: 'scene' }; f
           {beat.header}
         </Text>
       ) : null}
-      {beat.lines.filter((l) => l.text).map((l, i) => (
-        <Line key={i} l={l} />
-      ))}
-      {beat.graph ? (
+      {hasStream ? (
+        <Typewriter
+          ops={beat.stream!}
+          skip={frozen || skip}
+          color="redBright"
+          onDone={() => {
+            setStreamDone(true);
+            onDone();
+          }}
+        />
+      ) : (
+        beat.lines.filter((l) => l.text).map((l, i) => <Line key={i} l={l} />)
+      )}
+      {beat.graph && streamDone ? (
         <Box marginTop={1} flexDirection="column">
           <GraphView graph={beat.graph} animate={!frozen} />
         </Box>
@@ -133,7 +148,35 @@ function SceneView({ beat, frozen, onDone }: { beat: Beat & { kind: 'scene' }; f
 
 function GraphView({ graph, animate }: { graph: Graph; animate: boolean }) {
   if (graph.type === 'clock') return <Clock hours={graph.hours} />;
+  if (graph.type === 'gauge') return <Gauge score={graph.score} label={graph.label} caption={graph.caption} />;
   return <BarChart rows={graph.rows} animate={animate} barColor={graph.barColor} />;
+}
+
+/** A red→yellow→green sanity gauge. Filled length AND colour both signal how bad it is. */
+function Gauge({ score, label, caption }: { score: number; label: string; caption?: string }) {
+  const W = 30;
+  const filled = Math.max(1, Math.round((score / 100) * W));
+  const zoneColor = (i: number) => (i / W < 0.34 ? 'red' : i / W < 0.67 ? 'yellow' : 'green');
+  const scoreColor = score < 34 ? 'redBright' : score < 67 ? 'yellow' : 'greenBright';
+  return (
+    <Box flexDirection="column">
+      {caption ? (
+        <Text color="gray" bold>
+          {caption}
+        </Text>
+      ) : null}
+      <Text>
+        {Array.from({ length: W }, (_, i) => (
+          <Text key={i} color={i < filled ? zoneColor(i) : 'gray'} dimColor={i >= filled}>
+            {i < filled ? '█' : '░'}
+          </Text>
+        ))}
+      </Text>
+      <Text color={scoreColor} bold>
+        {`  ${score}/100 — ${label}`}
+      </Text>
+    </Box>
+  );
 }
 
 function ShareView({ beat, frozen, onDone }: { beat: Beat & { kind: 'share' }; frozen?: boolean; onDone: () => void }) {

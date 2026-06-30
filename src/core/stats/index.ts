@@ -5,6 +5,7 @@ import { peopleStats } from './people.js';
 import { habitsStats } from './habits.js';
 import { messageStats } from './messages.js';
 import { smellStats } from './smells.js';
+import { projectStats } from './project.js';
 
 export const ALL_STATS: Stat[] = [
   ...overviewStats,
@@ -12,9 +13,10 @@ export const ALL_STATS: Stat[] = [
   ...habitsStats,
   ...messageStats,
   ...smellStats,
+  ...projectStats,
 ];
 
-export const CATEGORY_ORDER = ['overview', 'people', 'habits', 'messages', 'smells', 'code'] as const;
+export const CATEGORY_ORDER = ['overview', 'people', 'habits', 'messages', 'smells', 'code', 'project'] as const;
 
 export const CATEGORY_LABELS: Record<string, string> = {
   overview: 'THE SCOREBOARD',
@@ -23,4 +25,5 @@ export const CATEGORY_LABELS: Record<string, string> = {
   messages: 'COMMIT MESSAGE FORENSICS',
   smells: 'EVIDENCE OF GUILT',
   code: 'CRIME SCENES',
+  project: 'THE PROJECT ITSELF',
 };

@@ -1,10 +1,10 @@
 {
-  "name": "@eliottgdl/git-roast",
+  "name": "@eliottgdl/git-wrapped",
   "version": "0.1.0",
   "description": "Spotify Wrapped, but it roasts your git repo.",
   "type": "module",
   "bin": {
-    "git-roast": "dist/cli/index.js"
+    "git-wrapped": "dist/cli/index.js"
   },
   "files": [
     "dist"
@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/EliottGand/git-roast.git"
+    "url": "git+https://github.com/EliottGand/git-wrapped.git"
   },
   "scripts": {
     "dev": "bun src/cli/index.tsx",

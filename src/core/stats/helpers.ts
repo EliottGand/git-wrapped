@@ -110,3 +110,8 @@ export function ext(path: string): string {
   const dot = base.lastIndexOf('.');
   return dot > 0 ? base.slice(dot + 1).toLowerCase() : '';
 }
+
+/** Final path segment, e.g. "src/pom.xml" → "pom.xml". */
+export function basename(path: string): string {
+  return path.split('/').pop() ?? path;
+}

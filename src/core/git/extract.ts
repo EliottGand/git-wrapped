@@ -8,8 +8,10 @@
  * lines follow each record.
  */
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
-import type { Commit, FileChange, Identity, RepoData } from '../types.js';
+import { readFileSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import type { Commit, FileChange, Identity, MarkerScan, RepoData } from '../types.js';
+import { canonicalizeIdentities } from '../identity.js';
 
 const FIELD = '\x1f'; // unit separator
 const RECORD = '\x1e'; // record separator
@@ -130,6 +132,142 @@ function parseLog(raw: string): Commit[] {
   return commits;
 }
 
+/**
+ * "Signal" files worth reading in full — language manifests, hook scripts, and tool
+ * configs across every ecosystem (JS, Python, Go, Rust, Java/Kotlin, PHP, Ruby, .NET,
+ * Elixir, Dart…). Matched by BASENAME so nested manifests in monorepos / multi-module
+ * builds are picked up too, not just the ones at the repo root.
+ */
+const SIGNAL_BASENAME_RE = new RegExp(
+  [
+    // JS / TS manifests & configs
+    '^package\\.json$', '^tsconfig.*\\.json$', '^\\.nycrc(\\.json)?$', '^biome\\.jsonc?$',
+    '^\\.eslintrc.*$', '^eslint\\.config\\.[cm]?js$', '^\\.prettierrc.*$',
+    '^jest\\.config\\.[cm]?[jt]s(on)?$', '^vitest\\.config\\.[cm]?[jt]s$', '^vite\\.config\\.[cm]?[jt]s$',
+    '^commitlint\\.config\\.[cm]?js$', '^\\.lintstagedrc.*$',
+    // Python
+    '^requirements[^/]*\\.txt$', '^pyproject\\.toml$', '^Pipfile$', '^setup\\.cfg$', '^tox\\.ini$',
+    '^\\.coveragerc$', '^\\.flake8$', '^\\.pylintrc$', '^\\.?ruff\\.toml$', '^mypy\\.ini$',
+    // Go
+    '^go\\.mod$', '^\\.golangci\\.(ya?ml|toml)$',
+    // Rust
+    '^Cargo\\.toml$', '^\\.?rustfmt\\.toml$', '^clippy\\.toml$',
+    // Java / Kotlin
+    '^pom\\.xml$', '^build\\.gradle(\\.kts)?$', '^settings\\.gradle(\\.kts)?$',
+    '^checkstyle\\.xml$', '^detekt\\.ya?ml$',
+    // PHP
+    '^composer\\.json$', '^phpstan\\.neon(\\.dist)?$', '^psalm\\.xml(\\.dist)?$',
+    '^\\.?phpcs\\.xml(\\.dist)?$', '^\\.php-cs-fixer(\\.dist)?\\.php$', '^phpunit\\.xml(\\.dist)?$',
+    // Ruby
+    '^Gemfile$', '^\\.rubocop\\.yml$', '^\\.overcommit\\.yml$',
+    // Elixir / Dart / .NET
+    '^mix\\.exs$', '^pubspec\\.yaml$', '^.+\\.csproj$',
+    // hooks / CI-adjacent / build
+    '^\\.pre-commit-config\\.ya?ml$', '^lefthook\\.ya?ml$', '^\\.gitlint$',
+    '^Dockerfile$', '^docker-compose\\.ya?ml$', '^Makefile$', '^CMakeLists\\.txt$',
+  ].join('|'),
+);
+
+/** Files matched by exact relative path (not basename) — e.g. the Husky hook scripts. */
+const SIGNAL_PATH_RE = /(^|\/)\.husky\/(pre-commit|pre-push|commit-msg)$/;
+
+const MAX_SIGNAL_BYTES = 256 * 1024;
+const MAX_SIGNAL_FILES = 120;
+
+function basenameOf(p: string): string {
+  return p.split('/').pop() ?? p;
+}
+
+/**
+ * Read the signal files among the tracked set (so we honor .gitignore and find nested
+ * manifests). Keyed by repo-relative path; bounded in count and per-file size.
+ */
+function readSignalFiles(root: string, trackedFiles: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  let n = 0;
+  for (const rel of trackedFiles) {
+    if (n >= MAX_SIGNAL_FILES) break;
+    if (!SIGNAL_BASENAME_RE.test(basenameOf(rel)) && !SIGNAL_PATH_RE.test(rel)) continue;
+    try {
+      const p = join(root, rel);
+      const st = statSync(p);
+      if (!st.isFile() || st.size > MAX_SIGNAL_BYTES) continue;
+      out[rel] = readFileSync(p, 'utf8');
+      n += 1;
+    } catch {
+      // missing / unreadable — just skip it
+    }
+  }
+  return out;
+}
+
+const MARKER_KEYWORDS = ['TODO', 'FIXME', 'HACK', 'XXX'];
+const MARKER_RE = new RegExp(`\\b(${MARKER_KEYWORDS.join('|')})\\b`, 'g');
+// A marker only counts as real debt if it sits in a COMMENT, not in code that merely
+// mentions the word (string literals, regexes, arrays). We approximate "is in a comment"
+// by requiring a comment introducer at/before the marker — covering //, #, /* */, *,
+// <!-- -->, SQL/Lua --, and Lisp/ini ; across the languages people actually write.
+const COMMENT_LEAD_RE = /(\/\/|#|\/\*|<!--|--|;)/;
+// Lines that read as a confession make the funniest examples — surface them first.
+const SPICY_RE = /\b(temp|temporary|hack|sorry|don'?t|never|please|why|wtf|ugh|broken|dirty|gross|remove|delete|someday|later|nuke|cursed|magic)\b/i;
+
+/** True when the marker at `idx` looks like it lives inside a comment on this line. */
+function inComment(line: string, idx: number): boolean {
+  const before = line.slice(0, idx);
+  if (COMMENT_LEAD_RE.test(before)) return true;
+  // Block-comment continuation lines: " * TODO ..."
+  return /^\s*\*/.test(line);
+}
+
+/**
+ * Scan the working tree for leftover-intent markers via `git grep` (fast, native,
+ * binary-aware). Returns counts plus a few example lines, preferring "spicy" ones.
+ */
+function scanMarkers(root: string): MarkerScan {
+  const counts: Record<string, number> = {};
+  for (const k of MARKER_KEYWORDS) counts[k] = 0;
+  const examples: MarkerScan['examples'] = [];
+
+  let raw = '';
+  try {
+    raw = git(['grep', '-nI', '--no-color', '-E', '-w', '-e', MARKER_KEYWORDS.join('|')], root);
+  } catch {
+    // `git grep` exits non-zero when there are zero matches — treat as clean.
+    return { counts, total: 0, examples };
+  }
+
+  const lines = raw.split('\n');
+  for (const line of lines) {
+    if (!line) continue;
+    // Format: path:lineno:content
+    const m = /^(.+?):(\d+):(.*)$/.exec(line);
+    if (!m) continue;
+    const path = m[1]!;
+    const lineNo = Number(m[2]);
+    const text = m[3]!.trim();
+
+    // Count each marker occurrence, but only the ones sitting inside a comment.
+    let primary = '';
+    MARKER_RE.lastIndex = 0;
+    let m2: RegExpExecArray | null;
+    while ((m2 = MARKER_RE.exec(text)) !== null) {
+      if (!inComment(text, m2.index)) continue;
+      const key = m2[1]!.toUpperCase();
+      if (counts[key] === undefined) counts[key] = 0;
+      counts[key] += 1;
+      primary = key;
+    }
+    if (primary && examples.length < 40) {
+      examples.push({ marker: primary, path, line: lineNo, text: text.slice(0, 160) });
+    }
+  }
+
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  // Keep the spiciest handful for display.
+  examples.sort((a, b) => Number(SPICY_RE.test(b.text)) - Number(SPICY_RE.test(a.text)));
+  return { counts, total, examples: examples.slice(0, 6) };
+}
+
 export interface ExtractOptions {
   /** Include merge commits (needed for self-merger stat). Default true. */
   includeMerges?: boolean;
@@ -159,7 +297,9 @@ export function extractRepoData(cwd: string, opts: ExtractOptions = {}): RepoDat
   }
 
   const rawLog = git(logArgs, realRoot);
-  const commits = parseLog(rawLog);
+  // Merge the same human recorded under different name orderings / emails before any
+  // stat counts them, so leaderboards don't list one person three times.
+  const { commits, currentUser } = canonicalizeIdentities(parseLog(rawLog), resolveCurrentUser(realRoot));
 
   let trackedFiles: string[] = [];
   try {
@@ -174,8 +314,10 @@ export function extractRepoData(cwd: string, opts: ExtractOptions = {}): RepoDat
   return {
     root: realRoot,
     commits,
-    currentUser: resolveCurrentUser(realRoot),
+    currentUser,
     trackedFiles,
+    signalFiles: readSignalFiles(realRoot, trackedFiles),
+    markers: scanMarkers(realRoot),
     generatedAt: opts.now ?? Math.floor(Date.now() / 1000),
   };
 }

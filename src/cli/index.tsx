@@ -21,12 +21,12 @@ function parseArgs(argv: string[]) {
 }
 
 const HELP = `
-git-roast — Spotify Wrapped, but it roasts your repo.
+git-wrapped — Spotify Wrapped, but it roasts your repo.
 
 Usage:
-  git-roast [path]          Analyze a repo (defaults to current directory)
-  git-roast --plain         Print the story without animation (also used when piped)
-  git-roast --help          Show this help
+  git-wrapped [path]          Analyze a repo (defaults to current directory)
+  git-wrapped --plain         Print the story without animation (also used when piped)
+  git-wrapped --help          Show this help
 
 Your SUPREME INTELLIGENCE will judge you accordingly.
 `;
@@ -38,6 +38,12 @@ function graphLines(graph: Graph): string[] {
     const max = Math.max(1, ...graph.hours);
     const spark = graph.hours.map((h) => (h === 0 ? TICKS[0] : TICKS[Math.max(1, Math.round((h / max) * 7))])).join('');
     return [spark, '00h····06h····12h····18h··23h  (red hours are night, if your terminal had color)'];
+  }
+  if (graph.type === 'gauge') {
+    const W = 30;
+    const filled = Math.max(1, Math.round((graph.score / 100) * W));
+    const bar = `${'█'.repeat(filled)}${'░'.repeat(W - filled)}  ${graph.score}/100 — ${graph.label}`;
+    return graph.caption ? [graph.caption, bar] : [bar];
   }
   const max = Math.max(1, ...graph.rows.map((r) => r.value));
   const labelW = Math.min(20, Math.max(...graph.rows.map((r) => r.label.length)));
@@ -56,6 +62,7 @@ function renderPlain(report: ReturnType<typeof analyze>) {
     } else if (beat.kind === 'scene') {
       out.push('');
       if (beat.header) out.push(beat.header);
+      if (beat.stream) out.push(typewriterFinal(beat.stream));
       for (const l of beat.lines) if (l.text) out.push(l.text);
       if (beat.graph) out.push('', ...graphLines(beat.graph));
     } else {
