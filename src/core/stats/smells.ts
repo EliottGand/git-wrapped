@@ -4,10 +4,9 @@
  * where the supreme intelligence does its most contemptuous sneering.
  */
 import type { Commit, Stat } from '../types.js';
-import { byAuthor, displayName, idKey, isNoiseFile, maxBy, pct, roastByTier } from './helpers.js';
+import { byAuthor, displayName, idKey, isNoiseFile, LOOSE_FIX_RE, maxBy, pct, roastByTier } from './helpers.js';
 
 const nonMerge = (commits: Commit[]) => commits.filter((c) => !c.isMerge);
-const LOOSE_FIX_RE = /\bfix(e[ds])?\b|\bhotfix\b|\bbugfix\b|\brevert\b/i;
 
 /** THE CURSED FILE — the file touched in the most commits. Churn = pain. */
 const cursedFile: Stat = {

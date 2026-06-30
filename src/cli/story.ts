@@ -20,7 +20,7 @@ export interface SceneLine {
 export type Graph =
   | { type: 'bars'; rows: { label: string; value: number; suffix?: string; color?: string }[]; barColor?: string }
   | { type: 'clock'; hours: number[] }
-  | { type: 'gauge'; score: number; label: string; caption?: string };
+  | { type: 'gauge'; score: number; label: string; caption?: string; detail?: SceneLine[] };
 
 export type Beat =
   | { kind: 'typewriter'; ops: TypeOp[] }
@@ -175,6 +175,8 @@ interface Sanity {
   score: number;
   label: string;
   symptoms: Symptom[];
+  /** Points handed back for a human-written log (fades out as AI involvement climbs). */
+  humanBonus: number;
 }
 
 function computeSanity(report: AnalysisReport): Sanity {
@@ -188,7 +190,9 @@ function computeSanity(report: AnalysisReport): Sanity {
   const emDash = n('robot-detector', 'repoEmDash');
   const todos = n('todo-graveyard', 'total');
   const wip = n('wip-king', 'count');
-  const fixes = n('fix-it', 'fixes');
+  // Use the same fix-commit definition as the haunted-files chart (LOOSE_FIX_RE),
+  // so "% of commits that are fixes" is consistent everywhere.
+  const fixes = agg.fixCommits;
   const fixPct = Math.round((fixes / total) * 100);
   const reverts = n('reverter', 'count');
   const profanity = n('profanity', 'count');
@@ -219,8 +223,10 @@ function computeSanity(report: AnalysisReport): Sanity {
       shock: `${avg.toFixed(0)} files per commit, and ${num(god)} commits that touched 15+ at once — one detonated across ${num(agg.maxFilesInCommit)}. Have you ever, even once, made an atomic commit?`,
     },
     {
+      // The bigger the share of commits that are fixes, the sicker the repo — this is
+      // one of the heaviest penalties, scaling straight off the fix percentage.
       tag: 'fix-on-fix',
-      cost: Math.min(18, (fixes / total) * 55),
+      cost: Math.min(35, fixPct * 1.1),
       shock: `${fixPct}% of your commits exist only to fix an earlier commit. You are bailing water into the very boat you keep drilling holes in.`,
     },
     {
@@ -257,7 +263,32 @@ function computeSanity(report: AnalysisReport): Sanity {
   const score = Math.max(0, Math.min(100, Math.round(100 - symptoms.reduce((s, p) => s + p.cost, 0) + humanBonus)));
   const label =
     score >= 85 ? 'Lucid' : score >= 65 ? 'Stable-ish' : score >= 45 ? 'Fraying' : score >= 25 ? 'Concerning' : 'In crisis';
-  return { score, label, symptoms };
+  return { score, label, symptoms, humanBonus };
+}
+
+/**
+ * The full arithmetic behind the gauge, revealed on demand (press `d`): base 100, every
+ * symptom's penalty, the human-written bonus, then the raw total and the rounded result.
+ * Penalties are shown to one decimal so the line items actually add up to what you see.
+ */
+function sanityDetail(sanity: Sanity): SceneLine[] {
+  const pad = (label: string) => label.padEnd(24);
+  const signed = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1).padStart(5)}`;
+  const lines: SceneLine[] = [
+    { text: 'HOW THE SCORE IS CALCULATED', color: 'gray', bold: true },
+    { text: `  ${pad('base')}  100.0`, dim: true },
+  ];
+  for (const s of sanity.symptoms) {
+    lines.push({ text: `  ${pad(s.tag)} ${signed(-s.cost)}`, color: 'red' });
+  }
+  if (sanity.humanBonus > 0) {
+    lines.push({ text: `  ${pad('human-written bonus')} ${signed(sanity.humanBonus)}`, color: 'green' });
+  }
+  const raw = 100 - sanity.symptoms.reduce((s, p) => s + p.cost, 0) + sanity.humanBonus;
+  lines.push({ text: `  ${'─'.repeat(31)}`, dim: true });
+  lines.push({ text: `  ${pad('raw total')} ${raw.toFixed(1).padStart(6)}`, dim: true });
+  lines.push({ text: `  rounded & clamped to 0–100 → ${sanity.score}/100 (${sanity.label})`, color: 'whiteBright', bold: true });
+  return lines;
 }
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -380,15 +411,30 @@ function buildCandidates(report: AnalysisReport): Candidate[] {
   const cursed = find('cursed-file');
   if (fixMagnet || cursed) {
     const lines: SceneLine[] = [];
+    // The file that attracts the most FIX commits is the real story — bold it. Raw
+    // churn (the cursed file) is the supporting detail underneath.
     if (fixMagnet) {
-      lines.push({ text: fixMagnet.roast, color: 'whiteBright' });
-      if (cursed) lines.push({ text: cursed.roast, color: 'red', dim: true, italic: true });
+      lines.push({ text: fixMagnet.roast, color: 'whiteBright', bold: true });
+      // Only add the churn line if it's about a DIFFERENT file — otherwise we'd describe
+      // the same file twice (common once noisy manifests are excluded).
+      const samePath = cursed && cursed.data?.path === fixMagnet.data?.path;
+      if (cursed && !samePath) lines.push({ text: cursed.roast, color: 'red', dim: true, italic: true });
     } else if (cursed) {
-      lines.push({ text: cursed.roast, color: 'whiteBright' });
+      lines.push({ text: cursed.roast, color: 'whiteBright', bold: true });
     }
     const bus = find('bus-factor');
     if (bus && isCommittee === false) lines.push({ text: bus.roast, dim: true, italic: true });
-    lines.push({ text: 'Most-disturbed files (by number of commits that touched them):', color: 'gray' });
+    // When there's real fix signal (the fix-magnet stat fired, i.e. ≥3 fix commits with
+    // a repeat offender) and enough distinct files to chart, rank the leaderboard by
+    // fix commits instead of raw churn — that's the chart people actually want.
+    const useFix = !!fixMagnet && agg.topFixFiles.length >= 2;
+    const chartFiles = useFix ? agg.topFixFiles : agg.topChurnFiles;
+    lines.push({
+      text: useFix
+        ? 'Most fix-prone files (by number of fix commits that touched them):'
+        : 'Most-disturbed files (by number of commits that touched them):',
+      color: 'gray',
+    });
     const touches = Math.max((cursed?.data?.touches as number) ?? 0, (fixMagnet?.data?.fixes as number) ?? 0);
     // Base weight is deliberately modest (the sanity diagnosis is the bigger roast),
     // but it gets boosted to replace a thin rulebook or an absent Batman.
@@ -403,7 +449,11 @@ function buildCandidates(report: AnalysisReport): Candidate[] {
       graph: {
         type: 'bars',
         barColor: 'red',
-        rows: agg.topChurnFiles.map((f) => ({ label: fileLabel(f.path), value: f.count, suffix: `${f.count}×` })),
+        rows: chartFiles.map((f) => ({
+          label: fileLabel(f.path),
+          value: f.count,
+          suffix: useFix ? `${f.count} fix${f.count === 1 ? '' : 'es'}` : `${f.count}×`,
+        })),
       },
     });
   }
@@ -524,7 +574,7 @@ function buildCandidates(report: AnalysisReport): Candidate[] {
       title: 'THE DIAGNOSIS',
       lines: [],
       stream,
-      graph: { type: 'gauge', score: sanity.score, label: sanity.label, caption: 'REPOSITORY SANITY SCORE' },
+      graph: { type: 'gauge', score: sanity.score, label: sanity.label, caption: 'REPOSITORY SANITY SCORE', detail: sanityDetail(sanity) },
     });
   }
 

@@ -3,7 +3,7 @@
  * "loading commentary" derived from real findings. Pure except for the extract call.
  */
 import { computeAggregates, type Aggregates } from './aggregates.js';
-import { extractRepoData, type ExtractOptions } from './git/extract.js';
+import { extractRepoData, extractRepoDataAsync, type ExtractOptions } from './git/extract.js';
 import { ALL_STATS, CATEGORY_ORDER } from './stats/index.js';
 import type { RepoData, StatResult } from './types.js';
 
@@ -60,10 +60,22 @@ export function buildCommentary(repo: RepoData, results: StatResult[]): string[]
   return lines;
 }
 
-export function analyze(cwd: string, opts: ExtractOptions = {}): AnalysisReport {
-  const repo = extractRepoData(cwd, opts);
+/** Turn an extracted RepoData into the full report (pure — shared by both entry points). */
+function report(repo: RepoData): AnalysisReport {
   const results = runStats(repo);
   const aggregates = computeAggregates(repo);
   const commentary = buildCommentary(repo, results);
   return { repo, results, aggregates, commentary };
+}
+
+export function analyze(cwd: string, opts: ExtractOptions = {}): AnalysisReport {
+  return report(extractRepoData(cwd, opts));
+}
+
+/**
+ * Async twin of `analyze`: the heavy `git log` read runs off the main thread, so the
+ * caller's event loop stays free to animate a loading spinner while a big repo ingests.
+ */
+export async function analyzeAsync(cwd: string, opts: ExtractOptions = {}): Promise<AnalysisReport> {
+  return report(await extractRepoDataAsync(cwd, opts));
 }

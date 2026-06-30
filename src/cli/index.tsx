@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { render } from 'ink';
-import { createElement } from 'react';
-import { analyze } from '../core/analyze.js';
+import { render, useApp } from 'ink';
+import { createElement, useEffect, useState } from 'react';
+import { analyze, analyzeAsync, type AnalysisReport } from '../core/analyze.js';
 import { App } from './App.js';
 import { buildStory, type Graph } from './story.js';
 import { typewriterFinal } from './components/Typewriter.js';
+import { Loader } from './components/Loader.js';
 import { copyToClipboard } from './clipboard.js';
 
 function parseArgs(argv: string[]) {
@@ -74,6 +75,45 @@ function renderPlain(report: ReturnType<typeof analyze>) {
   console.log(out.join('\n'));
 }
 
+const ERROR_PREFIX = '\n(╯°□°)╯  The SUPREME INTELLIGENCE cannot work under these conditions:\n  ';
+const EMPTY_MSG = `\n¬_¬  Not a single commit worth judging. Come back when you've done something.\n\n`;
+
+/**
+ * The interactive (TTY) root: shows the Loader while `analyzeAsync` ingests the repo,
+ * then hands off to App. Analysis runs async so the spinner keeps animating through a
+ * big-big repo's `git log`. Error / empty cases print and exit, matching the plain path.
+ */
+function Root({ dir }: { dir: string }) {
+  const { exit } = useApp();
+  const [report, setReport] = useState<AnalysisReport | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    analyzeAsync(dir)
+      .then((r) => {
+        if (!live) return;
+        if (r.results.length === 0) {
+          process.stdout.write(EMPTY_MSG);
+          exit();
+          return;
+        }
+        setReport(r);
+      })
+      .catch((err) => {
+        if (!live) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`${ERROR_PREFIX}${msg}\n\n`);
+        process.exitCode = 1;
+        exit();
+      });
+    return () => {
+      live = false;
+    };
+  }, [dir]);
+
+  return report ? createElement(App, { report }) : createElement(Loader);
+}
+
 function main() {
   const { dir, plain, help } = parseArgs(process.argv);
   if (help) {
@@ -81,27 +121,26 @@ function main() {
     return;
   }
 
-  let report: ReturnType<typeof analyze>;
-  try {
-    report = analyze(dir);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`\n(╯°□°)╯  The SUPREME INTELLIGENCE cannot work under these conditions:\n  ${msg}\n\n`);
-    process.exitCode = 1;
-    return;
-  }
-
-  if (report.results.length === 0) {
-    process.stdout.write(`\n¬_¬  Not a single commit worth judging. Come back when you've done something.\n\n`);
-    return;
-  }
-
+  // Non-interactive (piped or --plain): analyze synchronously and print, no spinner.
   if (plain || !process.stdout.isTTY) {
+    let report: ReturnType<typeof analyze>;
+    try {
+      report = analyze(dir);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`${ERROR_PREFIX}${msg}\n\n`);
+      process.exitCode = 1;
+      return;
+    }
+    if (report.results.length === 0) {
+      process.stdout.write(EMPTY_MSG);
+      return;
+    }
     renderPlain(report);
     return;
   }
 
-  render(createElement(App, { report }));
+  render(createElement(Root, { dir }));
 }
 
 main();

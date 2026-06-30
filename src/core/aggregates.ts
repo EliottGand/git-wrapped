@@ -4,7 +4,7 @@
  * a graph". Kept in core (pure) so any future port reuses the same numbers.
  */
 import type { RepoData } from './types.js';
-import { displayName, ext, idKey, isNoiseFile } from './stats/helpers.js';
+import { displayName, ext, idKey, isNoiseFile, LOOSE_FIX_RE } from './stats/helpers.js';
 
 export interface AuthorStat {
   name: string;
@@ -43,6 +43,10 @@ export interface Aggregates {
   hourHistogram: number[]; // length 24
   weekdayHistogram: number[]; // length 7, 0=Sun
   topChurnFiles: FileStat[];
+  /** Files ranked by how many distinct fix/bug commits touched them. */
+  topFixFiles: FileStat[];
+  /** Total number of (non-merge) commits whose subject reads like a fix. */
+  fixCommits: number;
   batman: BatStat[];
   /** Mean number of files touched per (non-merge) commit. */
   avgFilesPerCommit: number;
@@ -64,8 +68,10 @@ export function computeAggregates(repo: RepoData): Aggregates {
   const hourHistogram = new Array(24).fill(0);
   const weekdayHistogram = new Array(7).fill(0);
   const churn = new Map<string, number>();
+  const fixChurn = new Map<string, number>();
   const langs = new Map<string, number>();
   let totalFilesTouched = 0;
+  let fixCommits = 0;
   let godCommits = 0;
   let maxFilesInCommit = 0;
 
@@ -82,6 +88,18 @@ export function computeAggregates(repo: RepoData): Aggregates {
       churn.set(f.path, (churn.get(f.path) ?? 0) + 1);
     }
     authors.set(key, a);
+
+    // Fix-prone files: count each file at most once per fix commit, so a file is
+    // ranked by how many bug/fix commits it appeared in, not how big they were.
+    if (LOOSE_FIX_RE.test(c.subject)) {
+      fixCommits += 1;
+      const seen = new Set<string>();
+      for (const f of c.files) {
+        if (seen.has(f.path)) continue;
+        seen.add(f.path);
+        fixChurn.set(f.path, (fixChurn.get(f.path) ?? 0) + 1);
+      }
+    }
 
     totalFilesTouched += c.files.length;
     if (c.files.length >= 15) godCommits += 1;
@@ -111,12 +129,15 @@ export function computeAggregates(repo: RepoData): Aggregates {
   const workhorseShare = topAuthors[0] && totalCommits ? Math.round((topAuthors[0].commits / totalCommits) * 100) : 0;
 
   const tracked = new Set(repo.trackedFiles);
-  const topChurnFiles: FileStat[] = [...churn.entries()]
-    .filter(([p]) => tracked.size === 0 || tracked.has(p))
-    .filter(([p]) => !isNoiseFile(p)) // lockfiles/translations/manifests aren't "haunted", just busy
-    .map(([path, count]) => ({ path, count }))
-    .sort((x, y) => y.count - x.count)
-    .slice(0, 6);
+  const rankFiles = (counts: Map<string, number>): FileStat[] =>
+    [...counts.entries()]
+      .filter(([p]) => tracked.size === 0 || tracked.has(p))
+      .filter(([p]) => !isNoiseFile(p)) // lockfiles/translations/manifests aren't "haunted", just busy
+      .map(([path, count]) => ({ path, count }))
+      .sort((x, y) => y.count - x.count)
+      .slice(0, 6);
+  const topChurnFiles = rankFiles(churn);
+  const topFixFiles = rankFiles(fixChurn);
 
   const first = commits[commits.length - 1];
   const ageDays = first ? Math.max(0, Math.floor((repo.generatedAt - first.authorDate) / 86400)) : 0;
@@ -136,6 +157,8 @@ export function computeAggregates(repo: RepoData): Aggregates {
     hourHistogram,
     weekdayHistogram,
     topChurnFiles,
+    topFixFiles,
+    fixCommits,
     batman: [...bats.values()].sort((x, y) => y.score - x.score),
     avgFilesPerCommit: totalCommits ? totalFilesTouched / totalCommits : 0,
     godCommits,

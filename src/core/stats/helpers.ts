@@ -1,6 +1,12 @@
 /** Pure helpers shared by stat modules. No I/O. */
 import type { Commit, Identity, RepoData } from '../types.js';
 
+/**
+ * A commit whose subject reads like a fix/bug/revert. Shared so the fix-magnet stat,
+ * the fix-prone-files aggregate, and the sanity index all agree on what "a fix" is.
+ */
+export const LOOSE_FIX_RE = /\bfix(e[ds])?\b|\bhotfix\b|\bbugfix\b|\brevert\b/i;
+
 /** Canonical key for an identity — email if present, else lowercased name. */
 export function idKey(id: Identity): string {
   return (id.email || id.name).toLowerCase();
@@ -86,8 +92,12 @@ const NOISE_RE = new RegExp(
   [
     // dependency lockfiles
     '(^|/)(package-lock\\.json|npm-shrinkwrap\\.json|yarn\\.lock|pnpm-lock\\.ya?ml|bun\\.lockb?|composer\\.lock|gemfile\\.lock|poetry\\.lock|cargo\\.lock|go\\.sum|packages\\.lock\\.json|podfile\\.lock|flake\\.lock)$',
-    // package / dependency manifests
-    '(^|/)(package\\.json|requirements[^/]*\\.txt|pipfile(\\.lock)?)$',
+    // package / dependency / build manifests, across ecosystems. These churn on
+    // every version bump and dependency change but aren't a file anyone "fought" —
+    // and in a monorepo there's one per package, so they'd otherwise flood the chart.
+    // Anchored with (^|/) so nested manifests in sub-packages are matched too.
+    '(^|/)(package\\.json|composer\\.json|requirements[^/]*\\.txt|pipfile(\\.lock)?|pyproject\\.toml|setup\\.cfg|tox\\.ini|pom\\.xml|build\\.gradle(\\.kts)?|settings\\.gradle(\\.kts)?|gemfile|cargo\\.toml|go\\.mod|pubspec\\.yaml|mix\\.exs|build\\.sbt)$',
+    '(^|/)[^/]+\\.csproj$',
     // translation / locale catalogs
     '(translations?|locales?|i18n|lang|messages)[._-][^/]*\\.(json|ya?ml|po|xliff|strings|arb)$',
     '(^|/)(translations?|locales?|i18n|lang)/',

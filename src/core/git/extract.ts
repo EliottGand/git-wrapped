@@ -7,21 +7,40 @@
  * (newlines, quotes, the word "fix") without breaking the parse. Per-commit numstat
  * lines follow each record.
  */
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import type { Commit, FileChange, Identity, MarkerScan, RepoData } from '../types.js';
 import { canonicalizeIdentities } from '../identity.js';
 
 const FIELD = '\x1f'; // unit separator
 const RECORD = '\x1e'; // record separator
 
+const MAX_GIT_BUFFER = 256 * 1024 * 1024; // big repos
+
 function git(args: string[], cwd: string): string {
   return execFileSync('git', args, {
     cwd,
     encoding: 'utf8',
-    maxBuffer: 256 * 1024 * 1024, // big repos
+    maxBuffer: MAX_GIT_BUFFER,
   });
+}
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Async twin of `git()` for the one call that dominates wall-clock on a big repo —
+ * the full `git log`. Running it async keeps the event loop free so the CLI's loading
+ * spinner actually animates while git streams its (possibly enormous) output.
+ */
+async function gitAsync(args: string[], cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: MAX_GIT_BUFFER,
+  });
+  return stdout;
 }
 
 /** Parse a git "<unix> <tz>" pair into local hour/weekday using the recorded offset. */
@@ -205,9 +224,20 @@ const MARKER_KEYWORDS = ['TODO', 'FIXME', 'HACK', 'XXX'];
 const MARKER_RE = new RegExp(`\\b(${MARKER_KEYWORDS.join('|')})\\b`, 'g');
 // A marker only counts as real debt if it sits in a COMMENT, not in code that merely
 // mentions the word (string literals, regexes, arrays). We approximate "is in a comment"
-// by requiring a comment introducer at/before the marker — covering //, #, /* */, *,
-// <!-- -->, SQL/Lua --, and Lisp/ini ; across the languages people actually write.
-const COMMENT_LEAD_RE = /(\/\/|#|\/\*|<!--|--|;)/;
+// by requiring a comment introducer before the marker on the line.
+//
+// Strong, unambiguous introducers — if one appears anywhere before the marker, the
+// marker is inside that comment: // and /* (C-family), # (Python/PHP/Ruby/shell/YAML),
+// and <!-- (HTML/XML).
+const COMMENT_LEAD_RE = /(\/\/|#|\/\*|<!--)/;
+// `--` and `;` ALSO introduce comments — but only in their comment form. Treated
+// loosely they wreck Java/PHP/JS/C accuracy, where `;` ends nearly every statement and
+// `i--`/`--i` is decrement, so a marker word in a string on a multi-statement line
+// (`foo(); log("FIXME")`) would be miscounted as debt. So pin them to their real shape:
+//   `--` is a SQL/Lua/Haskell comment only when space-delimited (` -- text`).
+const DASH_COMMENT_RE = /(?:^|\s)--(?=\s)/;
+//   `;`  is a Lisp/ini/asm comment only at the start of the line.
+const SEMI_COMMENT_RE = /^\s*;/;
 // Lines that read as a confession make the funniest examples — surface them first.
 const SPICY_RE = /\b(temp|temporary|hack|sorry|don'?t|never|please|why|wtf|ugh|broken|dirty|gross|remove|delete|someday|later|nuke|cursed|magic)\b/i;
 
@@ -215,6 +245,7 @@ const SPICY_RE = /\b(temp|temporary|hack|sorry|don'?t|never|please|why|wtf|ugh|b
 function inComment(line: string, idx: number): boolean {
   const before = line.slice(0, idx);
   if (COMMENT_LEAD_RE.test(before)) return true;
+  if (DASH_COMMENT_RE.test(before) || SEMI_COMMENT_RE.test(before)) return true;
   // Block-comment continuation lines: " * TODO ..."
   return /^\s*\*/.test(line);
 }
@@ -275,28 +306,27 @@ export interface ExtractOptions {
   now?: number;
 }
 
-/** Build a RepoData by reading the git repo at `cwd`. Throws if not a git repo. */
-export function extractRepoData(cwd: string, opts: ExtractOptions = {}): RepoData {
+/** Resolve the repo root, throwing the same friendly error everywhere. */
+function resolveRoot(cwd: string): string {
   const root = resolve(cwd);
   if (!isGitRepo(root)) {
     throw new Error(`Not a git repository: ${root}`);
   }
+  return git(['rev-parse', '--show-toplevel'], root).trim();
+}
 
-  const realRoot = git(['rev-parse', '--show-toplevel'], root).trim();
+function logArgsFor(opts: ExtractOptions): string[] {
+  const logArgs = ['log', '--no-color', '--numstat', `--pretty=format:${RECORD}${LOG_FORMAT}`];
+  if (opts.includeMerges === false) logArgs.push('--no-merges');
+  return logArgs;
+}
 
-  const logArgs = [
-    'log',
-    '--no-color',
-    '--numstat',
-    `--pretty=format:${RECORD}${LOG_FORMAT}`,
-  ];
-  if (opts.includeMerges !== false) {
-    // default git log already follows first-parent? No — it shows all. Keep merges.
-  } else {
-    logArgs.push('--no-merges');
-  }
-
-  const rawLog = git(logArgs, realRoot);
+/**
+ * Assemble a RepoData from an already-fetched `git log` dump. The remaining git/fs
+ * reads (ls-files, signal files, marker grep) are comparatively cheap, so they stay
+ * synchronous in both the sync and async entry points below.
+ */
+function assemble(realRoot: string, rawLog: string, opts: ExtractOptions): RepoData {
   // Merge the same human recorded under different name orderings / emails before any
   // stat counts them, so leaderboards don't list one person three times.
   const { commits, currentUser } = canonicalizeIdentities(parseLog(rawLog), resolveCurrentUser(realRoot));
@@ -320,4 +350,19 @@ export function extractRepoData(cwd: string, opts: ExtractOptions = {}): RepoDat
     markers: scanMarkers(realRoot),
     generatedAt: opts.now ?? Math.floor(Date.now() / 1000),
   };
+}
+
+/** Build a RepoData by reading the git repo at `cwd`. Throws if not a git repo. */
+export function extractRepoData(cwd: string, opts: ExtractOptions = {}): RepoData {
+  const realRoot = resolveRoot(cwd);
+  return assemble(realRoot, git(logArgsFor(opts), realRoot), opts);
+}
+
+/**
+ * Async twin of `extractRepoData`. Identical result, but the heavy `git log` traversal
+ * runs off the main thread so a UI can keep painting (a spinner) while a big repo loads.
+ */
+export async function extractRepoDataAsync(cwd: string, opts: ExtractOptions = {}): Promise<RepoData> {
+  const realRoot = resolveRoot(cwd);
+  return assemble(realRoot, await gitAsync(logArgsFor(opts), realRoot), opts);
 }

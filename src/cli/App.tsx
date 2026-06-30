@@ -14,21 +14,30 @@ export function App({ report }: { report: AnalysisReport }) {
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<'anim' | 'ready'>('anim');
   const [skip, setSkip] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
 
-  useInput(() => {
+  const current = beats[idx];
+  const detail = current?.kind === 'scene' && current.graph?.type === 'gauge' ? current.graph.detail : undefined;
+  const hasDetail = !!(detail && detail.length);
+
+  useInput((input) => {
     if (idx >= beats.length) return exit();
     if (phase === 'anim') {
       setSkip(true); // fast-forward the current animation
       return;
     }
-    // phase === 'ready' → advance, or leave if this was the last beat
+    // phase === 'ready' → 'd' toggles the calculation breakdown without advancing
+    if (input === 'd' && hasDetail) {
+      setShowDetail((s) => !s);
+      return;
+    }
+    // any other key → advance, or leave if this was the last beat
     if (idx + 1 >= beats.length) return exit();
     setIdx((i) => i + 1);
     setPhase('anim');
     setSkip(false);
+    setShowDetail(false);
   });
-
-  const current = beats[idx];
 
   // The banner is committed first, then each completed beat, so everything scrolls
   // naturally in the terminal's own scrollback.
@@ -57,7 +66,20 @@ export function App({ report }: { report: AnalysisReport }) {
               (anim→ready transition, graph animation) re-run for every chapter —
               otherwise consecutive scenes reuse one instance and never become "ready". */}
           <BeatView key={idx} beat={current} skip={skip} onDone={() => setPhase('ready')} />
-          <GateHint phase={phase} kind={current.kind} last={idx + 1 >= beats.length} />
+          {phase === 'ready' && showDetail && detail ? (
+            <Box marginTop={1} flexDirection="column">
+              {detail.map((l, i) => (
+                <Line key={i} l={l} />
+              ))}
+            </Box>
+          ) : null}
+          <GateHint
+            phase={phase}
+            kind={current.kind}
+            last={idx + 1 >= beats.length}
+            hasDetail={hasDetail}
+            showDetail={showDetail}
+          />
         </Box>
       ) : null}
     </Box>
@@ -75,10 +97,25 @@ function Banner() {
   );
 }
 
-function GateHint({ phase, kind, last }: { phase: 'anim' | 'ready'; kind: Beat['kind']; last: boolean }) {
+function GateHint({
+  phase,
+  kind,
+  last,
+  hasDetail,
+  showDetail,
+}: {
+  phase: 'anim' | 'ready';
+  kind: Beat['kind'];
+  last: boolean;
+  hasDetail?: boolean;
+  showDetail?: boolean;
+}) {
   let text: string;
   if (phase === 'anim') text = kind === 'typewriter' ? '   …  (press any key to skip)' : '   …';
-  else text = last ? '   ↵  leave' : '   ↵  continue';
+  else {
+    text = last ? '   ↵  leave' : '   ↵  continue';
+    if (hasDetail) text += showDetail ? '   ·   d  hide detail' : '   ·   d  show calculation';
+  }
   return (
     <Box marginTop={1}>
       <Text color="whiteBright" bold>
