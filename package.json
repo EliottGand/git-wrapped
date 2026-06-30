@@ -1,6 +1,6 @@
 {
   "name": "@eliottgdl/git-wrapped",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Spotify Wrapped, but it roasts your git repo.",
   "type": "module",
   "bin": {

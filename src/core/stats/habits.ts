@@ -1,6 +1,6 @@
 /** Time & habits — when do you commit, and should you be asleep instead. */
 import type { Stat } from '../types.js';
-import { maxBy, pct, roastByTier } from './helpers.js';
+import { maxBy, pct, pickVariant, roastByTier } from './helpers.js';
 
 const DAY = 86400;
 
@@ -19,7 +19,11 @@ const nightOwl: Stat = {
         title: this.title,
         category: this.category,
         headline: `0 commits between midnight and 6am`,
-        roast: `Not a single commit between midnight and 6am. Suspiciously well-adjusted. I don't trust it.`,
+        roast: pickVariant([
+          `Not a single commit between midnight and 6am. Suspiciously well-adjusted. I don't trust it.`,
+          `Zero commits in the small hours. Either you sleep, or you're very good at covering your tracks.`,
+          `No midnight-to-6am commits at all. Healthy. Boring. Faintly unbelievable.`,
+        ], repo.generatedAt, this.id),
         data: { witching: 0 },
       };
     }
@@ -30,10 +34,22 @@ const nightOwl: Stat = {
       category: this.category,
       headline: `${witching.length} commits between midnight and 6am (${share}%)`,
       roast: roastByTier(witching.length, [
-        { min: 50, template: `{n} commits in the witching hours. Sleep is a feature you never shipped.` },
-        { min: 10, template: `{n} commits between midnight and 6am. The bugs you wrote at 3am are someone's morning problem.` },
-        { min: 1, template: `{n} late-night ${witching.length === 1 ? 'commit' : 'commits'}. Were you okay? Be honest.` },
-      ]),
+        { min: 50, template: [
+          `{n} commits in the witching hours. Sleep is a feature you never shipped.`,
+          `{n} commits between midnight and 6am. At this point the moon is your code reviewer.`,
+          `{n} small-hours commits. Your circadian rhythm filed for divorce months ago.`,
+        ] },
+        { min: 10, template: [
+          `{n} commits between midnight and 6am. The bugs you wrote at 3am are someone's morning problem.`,
+          `{n} commits in the dark. Code written after midnight is a gift to whoever debugs it at noon.`,
+          `{n} after-midnight commits. The 3am you and the 9am you have never met and never will.`,
+        ] },
+        { min: 1, template: [
+          `{n} late-night ${witching.length === 1 ? 'commit' : 'commits'}. Were you okay? Be honest.`,
+          `{n} witching-hour ${witching.length === 1 ? 'commit' : 'commits'}. A cry for help, timestamped.`,
+          `{n} ${witching.length === 1 ? 'commit' : 'commits'} past midnight. Whatever it was, it could have waited until morning.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { witching: witching.length, share },
     };
   },
@@ -54,10 +70,22 @@ const weekendWarrior: Stat = {
       category: this.category,
       headline: `${weekend.length} weekend commits (${share}%)`,
       roast: roastByTier(share, [
-        { min: 30, template: `${share}% of commits on weekends. Work-life balance is a rumor you've heard but never confirmed.` },
-        { min: 10, template: `${weekend.length} weekend commits. Saturday is just Monday with worse lighting.` },
-        { min: 0, template: `Only ${share}% weekend commits. You actually log off. Disgustingly healthy.` },
-      ]),
+        { min: 30, template: [
+          `${share}% of commits on weekends. Work-life balance is a rumor you've heard but never confirmed.`,
+          `${share}% of your commits land on a weekend. Saturday and Sunday are just unpaid Mondays now.`,
+          `${share}% weekend commits. The concept of "a day off" is, to you, purely theoretical.`,
+        ] },
+        { min: 10, template: [
+          `${weekend.length} weekend commits. Saturday is just Monday with worse lighting.`,
+          `${weekend.length} commits on the weekend. The repo doesn't rest because you don't.`,
+          `${weekend.length} weekend commits. Somewhere, a hobby is gathering dust.`,
+        ] },
+        { min: 0, template: [
+          `Only ${share}% weekend commits. You actually log off. Disgustingly healthy.`,
+          `A mere ${share}% on weekends. You keep the sabbath sacred. Suspicious.`,
+          `Just ${share}% weekend activity. Boundaries. How novel.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { weekend: weekend.length, share },
     };
   },
@@ -77,9 +105,17 @@ const fridayDeployer: Stat = {
       category: this.category,
       headline: `${friLate.length} commits on Friday between 4pm and 9pm`,
       roast: roastByTier(friLate.length, [
-        { min: 20, template: `{n} Friday-evening commits. Shipping to prod at 5:47pm on a Friday is not a schedule, it's a cry for help.` },
-        { min: 1, template: `{n} Friday-late ${friLate.length === 1 ? 'commit' : 'commits'}. Future-you, on call this weekend, sends regards.` },
-      ]),
+        { min: 20, template: [
+          `{n} Friday-evening commits. Shipping to prod at 5:47pm on a Friday is not a schedule, it's a cry for help.`,
+          `{n} Friday-late commits. Nothing says confidence like a deploy with one foot already out the door.`,
+          `{n} commits on Friday evenings. The bravest words in software: "it's fine, ship it, see you Monday".`,
+        ] },
+        { min: 1, template: [
+          `{n} Friday-late ${friLate.length === 1 ? 'commit' : 'commits'}. Future-you, on call this weekend, sends regards.`,
+          `{n} late-Friday ${friLate.length === 1 ? 'commit' : 'commits'}. A gift to the on-call engineer, wrapped in dread.`,
+          `{n} Friday-evening ${friLate.length === 1 ? 'commit' : 'commits'}. Living dangerously, on a schedule.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { friLate: friLate.length },
     };
   },
@@ -104,9 +140,17 @@ const busiestDay: Stat = {
       category: this.category,
       headline: `${top[1]} commits on ${top[0]}`,
       roast: roastByTier(top[1], [
-        { min: 20, template: `${top[1]} commits in a single day (${top[0]}). That much output and yet, somehow, no progress.` },
-        { min: 1, template: `Peak day: ${top[1]} commits on ${top[0]}. A flurry of activity. Caffeine, presumably.` },
-      ]),
+        { min: 20, template: [
+          `${top[1]} commits in a single day (${top[0]}). That much output and yet, somehow, no progress.`,
+          `${top[1]} commits on ${top[0]} alone. A heroic day. Or a panicked one. The log never tells which.`,
+          `${top[1]} commits crammed into ${top[0]}. Frantic energy, questionable yield.`,
+        ] },
+        { min: 1, template: [
+          `Peak day: ${top[1]} commits on ${top[0]}. A flurry of activity. Caffeine, presumably.`,
+          `Busiest day: ${top[0]}, ${top[1]} commits. Something was due, clearly.`,
+          `${top[0]} saw ${top[1]} commits — your personal best, for whatever that's worth.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { day: top[0], count: top[1] },
     };
   },
@@ -137,10 +181,22 @@ const ghostGap: Stat = {
       category: this.category,
       headline: `Longest gap: ${gapDays} days (from ${new Date(gapStart * 1000).toISOString().slice(0, 10)})`,
       roast: roastByTier(gapDays, [
-        { min: 90, template: `You ghosted this repo for {n} days. It saw the read receipt. It waited. It understood.` },
-        { min: 14, template: `{n} days of radio silence at one point. The repo assumed the worst. The repo was right.` },
-        { min: 1, template: `Longest quiet stretch: {n} days. Practically attentive, by your standards.` },
-      ]),
+        { min: 90, template: [
+          `You ghosted this repo for {n} days. It saw the read receipt. It waited. It understood.`,
+          `{n} days of silence. The repo stopped checking the door. It made peace with abandonment.`,
+          `{n} days, not a single commit. The repo wrote you a letter. The repo did not send it.`,
+        ] },
+        { min: 14, template: [
+          `{n} days of radio silence at one point. The repo assumed the worst. The repo was right.`,
+          `{n} days went dark once. Long enough for everyone to wonder if the project was dead.`,
+          `A {n}-day gap in the history. The repo held its breath. It is still slightly blue.`,
+        ] },
+        { min: 1, template: [
+          `Longest quiet stretch: {n} days. Practically attentive, by your standards.`,
+          `Biggest gap: {n} days. Barely a pause. You're practically clingy.`,
+          `{n} days was your longest silence. Almost devoted, really.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { gapDays },
     };
   },

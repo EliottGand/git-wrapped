@@ -302,6 +302,12 @@ function scanMarkers(root: string): MarkerScan {
 export interface ExtractOptions {
   /** Include merge commits (needed for self-merger stat). Default true. */
   includeMerges?: boolean;
+  /**
+   * Only analyze commits newer than this point in time. Passed straight to
+   * `git log --since`, so it accepts git's relative ("2 years ago", "6 months")
+   * or absolute ("2024-01-01") date syntax. Undefined ⇒ entire history.
+   */
+  since?: string;
   /** Generation timestamp (unix seconds). Injected for determinism/testability. */
   now?: number;
 }
@@ -318,6 +324,7 @@ function resolveRoot(cwd: string): string {
 function logArgsFor(opts: ExtractOptions): string[] {
   const logArgs = ['log', '--no-color', '--numstat', `--pretty=format:${RECORD}${LOG_FORMAT}`];
   if (opts.includeMerges === false) logArgs.push('--no-merges');
+  if (opts.since) logArgs.push(`--since=${opts.since}`);
   return logArgs;
 }
 

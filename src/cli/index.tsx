@@ -2,23 +2,39 @@
 import { render, useApp } from 'ink';
 import { createElement, useEffect, useState } from 'react';
 import { analyze, analyzeAsync, type AnalysisReport } from '../core/analyze.js';
+import type { ExtractOptions } from '../core/git/extract.js';
 import { App } from './App.js';
 import { buildStory, type Graph } from './story.js';
 import { typewriterFinal } from './components/Typewriter.js';
 import { Loader } from './components/Loader.js';
 import { copyToClipboard } from './clipboard.js';
 
+/** Turn `--years 2` / `--years 1.5` into a git `--since` value ("2 years ago"). */
+function yearsToSince(value: string): string | undefined {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return `${n} years ago`;
+}
+
 function parseArgs(argv: string[]) {
   const args = argv.slice(2);
   let dir = process.cwd();
   let plain = false;
   let help = false;
-  for (const a of args) {
+  let since: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
     if (a === '--plain') plain = true;
     else if (a === '--help' || a === '-h') help = true;
+    // --since <when>: passed straight to git ("2 years ago", "2024-01-01", …).
+    else if (a === '--since') since = args[++i];
+    else if (a.startsWith('--since=')) since = a.slice('--since='.length);
+    // --years <n>: shorthand for "only the last n years".
+    else if (a === '--years') since = yearsToSince(args[++i] ?? '');
+    else if (a.startsWith('--years=')) since = yearsToSince(a.slice('--years='.length));
     else if (!a.startsWith('-')) dir = a;
   }
-  return { dir, plain, help };
+  return { dir, plain, help, opts: { since } satisfies ExtractOptions };
 }
 
 const HELP = `
@@ -26,6 +42,9 @@ git-wrapped — Spotify Wrapped, but it roasts your repo.
 
 Usage:
   git-wrapped [path]          Analyze a repo (defaults to current directory)
+  git-wrapped --years <n>     Only judge the last n years (e.g. --years 2)
+  git-wrapped --since <when>  Only judge commits since <when> (git date syntax:
+                              "6 months ago", "2024-01-01", …)
   git-wrapped --plain         Print the story without animation (also used when piped)
   git-wrapped --help          Show this help
 
@@ -83,13 +102,13 @@ const EMPTY_MSG = `\n¬_¬  Not a single commit worth judging. Come back when yo
  * then hands off to App. Analysis runs async so the spinner keeps animating through a
  * big-big repo's `git log`. Error / empty cases print and exit, matching the plain path.
  */
-function Root({ dir }: { dir: string }) {
+function Root({ dir, opts }: { dir: string; opts: ExtractOptions }) {
   const { exit } = useApp();
   const [report, setReport] = useState<AnalysisReport | null>(null);
 
   useEffect(() => {
     let live = true;
-    analyzeAsync(dir)
+    analyzeAsync(dir, opts)
       .then((r) => {
         if (!live) return;
         if (r.results.length === 0) {
@@ -109,13 +128,13 @@ function Root({ dir }: { dir: string }) {
     return () => {
       live = false;
     };
-  }, [dir]);
+  }, [dir, opts]);
 
   return report ? createElement(App, { report }) : createElement(Loader);
 }
 
 function main() {
-  const { dir, plain, help } = parseArgs(process.argv);
+  const { dir, plain, help, opts } = parseArgs(process.argv);
   if (help) {
     process.stdout.write(HELP);
     return;
@@ -125,7 +144,7 @@ function main() {
   if (plain || !process.stdout.isTTY) {
     let report: ReturnType<typeof analyze>;
     try {
-      report = analyze(dir);
+      report = analyze(dir, opts);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       process.stderr.write(`${ERROR_PREFIX}${msg}\n\n`);
@@ -140,7 +159,7 @@ function main() {
     return;
   }
 
-  render(createElement(Root, { dir }));
+  render(createElement(Root, { dir, opts }));
 }
 
 main();

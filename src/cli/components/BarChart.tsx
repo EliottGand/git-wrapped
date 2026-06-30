@@ -14,11 +14,14 @@ export function BarChart({
   width = 26,
   animate = true,
   barColor = 'cyan',
+  labelColor = 'gray',
 }: {
   rows: BarRow[];
   width?: number;
   animate?: boolean;
   barColor?: string;
+  /** Colour of the row labels. Defaults to gray; the hype meter uses white. */
+  labelColor?: string;
 }) {
   const [frac, setFrac] = useState(animate ? 0 : 1);
 
@@ -47,7 +50,7 @@ export function BarChart({
         const label = r.label.length > labelW ? r.label.slice(0, labelW - 1) + '…' : r.label.padEnd(labelW);
         return (
           <Text key={i}>
-            <Text color="gray">{label} </Text>
+            <Text color={labelColor}>{label} </Text>
             <Text color={r.color ?? barColor}>{'█'.repeat(filled)}</Text>
             <Text color="gray" dimColor>
               {'░'.repeat(Math.max(0, width - filled))}

@@ -8,6 +8,10 @@ bunx @eliottgdl/git-wrapped /path/to/any/repo   # or npx @eliottgdl/git-wrapped
 
 Defaults to the current directory. `--plain` skips the animation, `--help` explains itself.
 
+Want only recent history judged? `--years <n>` limits the roast to the last *n* years
+(`--years 2`), and `--since <when>` takes any git date (`--since "6 months ago"`,
+`--since 2024-01-01`).
+
 No AI API key, no account, no network call. It reads your local git history and roasts
 you entirely offline.
 

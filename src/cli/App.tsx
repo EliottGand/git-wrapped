@@ -186,7 +186,7 @@ function SceneView({ beat, frozen, skip, onDone }: { beat: Beat & { kind: 'scene
 function GraphView({ graph, animate }: { graph: Graph; animate: boolean }) {
   if (graph.type === 'clock') return <Clock hours={graph.hours} />;
   if (graph.type === 'gauge') return <Gauge score={graph.score} label={graph.label} caption={graph.caption} />;
-  return <BarChart rows={graph.rows} animate={animate} barColor={graph.barColor} />;
+  return <BarChart rows={graph.rows} animate={animate} barColor={graph.barColor} labelColor={graph.labelColor} />;
 }
 
 /** A red→yellow→green sanity gauge. Filled length AND colour both signal how bad it is. */

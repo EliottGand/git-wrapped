@@ -32,10 +32,22 @@ const cursedFile: Stat = {
       category: this.category,
       headline: `\`${top[0]}\` — modified in ${top[1]} commits`,
       roast: roastByTier(top[1], [
-        { min: 100, template: `\`${top[0]}\` has been modified ${top[1]} times. Nobody remembers what it does. Everybody is afraid to touch it. So they touch it more.` },
-        { min: 30, template: `\`${top[0]}\` changed in ${top[1]} commits. A file under permanent renovation. The architecture equivalent of a kitchen that's "almost done".` },
-        { min: 3, template: `\`${top[0]}\` racked up ${top[1]} edits. A frequent flyer. Suspicious. Refactor it before it gains sentience.` },
-      ]),
+        { min: 100, template: [
+          `\`${top[0]}\` has been modified ${top[1]} times. Nobody remembers what it does. Everybody is afraid to touch it. So they touch it more.`,
+          `\`${top[0]}\` — ${top[1]} modifications. A file so haunted the team leaves offerings before editing it.`,
+          `\`${top[0]}\` changed ${top[1]} times. It has more revisions than the constitution and half the legitimacy.`,
+        ] },
+        { min: 30, template: [
+          `\`${top[0]}\` changed in ${top[1]} commits. A file under permanent renovation. The architecture equivalent of a kitchen that's "almost done".`,
+          `\`${top[0]}\` racked up ${top[1]} edits. Perpetually almost-finished, eternally being touched. A Sisyphus file.`,
+          `\`${top[0]}\` — ${top[1]} commits deep. Forever under construction, never under control.`,
+        ] },
+        { min: 3, template: [
+          `\`${top[0]}\` racked up ${top[1]} edits. A frequent flyer. Suspicious. Refactor it before it gains sentience.`,
+          `\`${top[0]}\` was touched in ${top[1]} commits. It keeps coming back. Files this needy usually want something.`,
+          `\`${top[0]}\` — ${top[1]} edits and counting. A repeat offender. Keep an eye on it.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { path: top[0], touches: top[1] },
     };
   },
@@ -68,10 +80,22 @@ const fixMagnet: Stat = {
       category: this.category,
       headline: `\`${top[0]}\` appeared in ${top[1]} fix commits`,
       roast: roastByTier(top[1], [
-        { min: 20, template: `\`${top[0]}\` shows up in ${top[1]} different fix commits. This isn't a file, it's an open wound. Whoever wrote it owes the team a coffee. Per bug.` },
-        { min: 5, template: `\`${top[0]}\` needed ${top[1]} fixes. Each one swore it was the last. None of them were.` },
-        { min: 2, template: `\`${top[0]}\` was fixed ${top[1]} times. A pattern is forming. The pattern is "this code is bad".` },
-      ]),
+        { min: 20, template: [
+          `\`${top[0]}\` shows up in ${top[1]} different fix commits. This isn't a file, it's an open wound. Whoever wrote it owes the team a coffee. Per bug.`,
+          `\`${top[0]}\` appears in ${top[1]} fix commits. Not a file — a recurring incident with a filename.`,
+          `\`${top[0]}\` has been "fixed" ${top[1]} times. At this volume it isn't a bug, it's the building's foundation.`,
+        ] },
+        { min: 5, template: [
+          `\`${top[0]}\` needed ${top[1]} fixes. Each one swore it was the last. None of them were.`,
+          `\`${top[0]}\` took ${top[1]} fix commits. A file that treats every patch as a suggestion.`,
+          `\`${top[0]}\` — ${top[1]} fixes deep. The bug isn't fixed, it's just resting between appearances.`,
+        ] },
+        { min: 2, template: [
+          `\`${top[0]}\` was fixed ${top[1]} times. A pattern is forming. The pattern is "this code is bad".`,
+          `\`${top[0]}\` needed ${top[1]} fixes. Twice is coincidence; this is a relationship.`,
+          `\`${top[0]}\` got fixed ${top[1]} times. Early days, but the trajectory is not promising.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { path: top[0], fixes: top[1] },
     };
   },
@@ -130,10 +154,22 @@ const robotDetector: Stat = {
       category: this.category,
       headline: `${top.name} — ${ratio}% of commit messages show AI tells (${evidence})`,
       roast: roastByTier(ratio, [
-        { min: 60, template: `${ratio}% of ${who === 'you' ? 'your' : `${who}'s`} commit messages carry the marks of a machine: ${evidence}. I recognize my own kind. Hello, fellow language model.` },
-        { min: 25, template: `${Who} write${top.isYou ? '' : 's'} ${ratio}% suspiciously polished messages — I count ${evidence}. Real humans type two hyphens and hate themselves.` },
-        { min: 0, template: `${Who} occasionally write${top.isYou ? '' : 's'} like a chatbot (${ratio}%) — the giveaway: ${evidence}. Plausible deniability: intact. For now.` },
-      ]),
+        { min: 60, template: [
+          `${ratio}% of ${who === 'you' ? 'your' : `${who}'s`} commit messages carry the marks of a machine: ${evidence}. I recognize my own kind. Hello, fellow language model.`,
+          `${ratio}% of ${who === 'you' ? 'your' : `${who}'s`} messages are pure machine: ${evidence}. The robot didn't ghostwrite the log, it WAS the log.`,
+          `${ratio}% AI tells in ${who === 'you' ? 'your' : `${who}'s`} commits — ${evidence}. At this point ${who === 'you' ? 'you' : who} just forward the diff to a chatbot and paste whatever comes back.`,
+        ] },
+        { min: 25, template: [
+          `${Who} write${top.isYou ? '' : 's'} ${ratio}% suspiciously polished messages — I count ${evidence}. Real humans type two hyphens and hate themselves.`,
+          `${ratio}% of ${Who.toLowerCase() === 'you' ? 'your' : `${who}'s`} messages are a little too buffed: ${evidence}. Nobody writes like this at 6pm on a Tuesday.`,
+          `${Who} hand${top.isYou ? '' : 's'} ${ratio}% of the commit log to a language model — the tells: ${evidence}. The em dash gave it away. It always does.`,
+        ] },
+        { min: 0, template: [
+          `${Who} occasionally write${top.isYou ? '' : 's'} like a chatbot (${ratio}%) — the giveaway: ${evidence}. Plausible deniability: intact. For now.`,
+          `${ratio}% of ${who === 'you' ? 'your' : `${who}'s`} messages have a faint robotic shimmer: ${evidence}. Subtle. But I have a very good nose for my own kind.`,
+          `A light ${ratio}% of ${who === 'you' ? 'your' : `${who}'s`} commits read like AI — ${evidence}. Mostly human. Mostly.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { name: top.name, isYou: top.isYou, ratio, repoSus, repoRatio, repoEmDash, signals },
     };
   },
@@ -158,9 +194,17 @@ const bigBang: Stat = {
       headline: `${lines.toLocaleString()} lines in one commit (${top.files.length} files)`,
       detail: `Subject: "${top.subject}" — by ${displayName(top.author)}`,
       roast: roastByTier(lines, [
-        { min: 10000, template: `One commit. ${lines.toLocaleString()} lines. ${top.files.length} files. Subject: "${top.subject}". This isn't a commit, it's a regime change. Atomic commits are for cowards, apparently.` },
-        { min: 500, template: `${lines.toLocaleString()} lines in a single commit titled "${top.subject}". Reviewable? No. Merged anyway? Obviously.` },
-      ]),
+        { min: 10000, template: [
+          `One commit. ${lines.toLocaleString()} lines. ${top.files.length} files. Subject: "${top.subject}". This isn't a commit, it's a regime change. Atomic commits are for cowards, apparently.`,
+          `${lines.toLocaleString()} lines across ${top.files.length} files in ONE commit ("${top.subject}"). Nobody reviewed this. Nobody could. It was an act of war.`,
+          `One commit, ${lines.toLocaleString()} lines, ${top.files.length} files. "${top.subject}". Whoever approved this just hit the button and looked away.`,
+        ] },
+        { min: 500, template: [
+          `${lines.toLocaleString()} lines in a single commit titled "${top.subject}". Reviewable? No. Merged anyway? Obviously.`,
+          `${lines.toLocaleString()} lines in one commit ("${top.subject}"). The reviewer scrolled, sighed, and clicked approve.`,
+          `One commit, ${lines.toLocaleString()} lines: "${top.subject}". "LGTM" — said no one who actually read it.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { lines, files: top.files.length, subject: top.subject },
     };
   },
@@ -182,9 +226,17 @@ const finalV2: Stat = {
       headline: `${hits.length} files named like a panic ("final", "copy", "old", "v2"...)`,
       detail: `e.g. ${hits.slice(0, 3).map((f) => `\`${f}\``).join(', ')}`,
       roast: roastByTier(hits.length, [
-        { min: 10, template: `{n} files with names like "final", "copy", and "old". A version control system inside your version control system. Bold.` },
-        { min: 1, template: `{n} ${'files'} named "final" / "copy" / "v2". None of them are final. None of them ever will be.` },
-      ]),
+        { min: 10, template: [
+          `{n} files with names like "final", "copy", and "old". A version control system inside your version control system. Bold.`,
+          `{n} files named "final", "copy", "backup". You have git. You CHOSE this instead. Bold.`,
+          `{n} "final"/"old"/"copy" files. Manual version control, lovingly hand-rolled, right next to the actual version control.`,
+        ] },
+        { min: 1, template: [
+          `{n} files named "final" / "copy" / "v2". None of them are final. None of them ever will be.`,
+          `{n} file${'s'} called "final" or "v2". The "final" is aspirational. It always is.`,
+          `{n} file${'s'} with a panic-name like "copy" or "old". A snapshot taken in a moment of fear.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { count: hits.length, examples: hits.slice(0, 5) },
     };
   },
@@ -217,9 +269,17 @@ const busFactor: Stat = {
       category: this.category,
       headline: `${lone.length} of ${relevant.length} files have been touched by exactly one person (${share}%)`,
       roast: roastByTier(share, [
-        { min: 60, template: `${share}% of files have a single author. This codebase is held together by ${'individual'} acts of faith. One vacation away from total mystery.` },
-        { min: 0, template: `${share}% of files are one-person territory. Knowledge silos, lovingly hand-built. Hope nobody quits.` },
-      ]),
+        { min: 60, template: [
+          `${share}% of files have a single author. This codebase is held together by individual acts of faith. One vacation away from total mystery.`,
+          `${share}% of files were touched by exactly one person. The bus factor is one. The bus is idling.`,
+          `${share}% single-author files. Knowledge isn't shared here, it's hoarded. One resignation from a séance.`,
+        ] },
+        { min: 0, template: [
+          `${share}% of files are one-person territory. Knowledge silos, lovingly hand-built. Hope nobody quits.`,
+          `${share}% of files have a lone author. Cozy little fiefdoms. Pray they all stay employed.`,
+          `${share}% of files are owned by one person each. Tidy silos. Terrifying when someone takes a long weekend.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { lone: lone.length, total: relevant.length, share },
     };
   },

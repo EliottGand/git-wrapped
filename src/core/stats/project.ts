@@ -9,7 +9,7 @@
  * config-file presence, and file extensions — not just `package.json`.
  */
 import type { RepoData, Stat } from '../types.js';
-import { basename, ext, roastByTier } from './helpers.js';
+import { basename, ext, pickVariant, roastByTier } from './helpers.js';
 
 /* ─────────────────── signal-file access helpers ─────────────────── */
 
@@ -144,13 +144,62 @@ const LANG_TECH: Record<string, { name: string; roast: string }> = {
   sh: { name: 'shell scripts', roast: 'Shell scripts. Held together by `set -e` and prayer.' },
   lua: { name: 'Lua', roast: 'Lua. Tables all the way down. Arrays start at 1, joy ends there.' },
   js: { name: 'JavaScript', roast: 'JavaScript. It says yes to everything — including your worst ideas, at runtime, in prod.' },
+  hs: { name: 'Haskell', roast: 'Haskell. You didn’t write a program, you wrote a proof — and it still won’t do your laundry.' },
+  clj: { name: 'Clojure', roast: 'Clojure. Lisp on the JVM. Parentheses as a lifestyle choice, then as a cry for help.' },
+  erl: { name: 'Erlang', roast: 'Erlang. Nine-nines of uptime — more reliability than you offer anyone in your actual life.' },
+  ml: { name: 'OCaml', roast: 'OCaml. Elegant, blazing, and spoken fluently by roughly forty people, all of whom have opinions.' },
+  fs: { name: 'F#', roast: 'F#. The functional language Microsoft keeps in the attic and remembers once a year.' },
+  pl: { name: 'Perl', roast: 'Perl. Write-only code. You wrote it; now not even you can read it back.' },
+  r: { name: 'R', roast: 'R. A statistics language built by statisticians — and it feels exactly like that sounds.' },
+  jl: { name: 'Julia', roast: 'Julia. As fast as C, they swore — right after the eleven-second warm-up, every single time.' },
+  groovy: { name: 'Groovy', roast: 'Groovy. Java’s improv night. Optional types, mandatory regret.' },
+  objc: { name: 'Objective-C', roast: 'Objective-C. Square brackets nested so deep it reads like the runtime is shouting at you.' },
+  zig: { name: 'Zig', roast: 'Zig. C with the seatbelts it always refused to wear. The cult is small and very loud.' },
+  nim: { name: 'Nim', roast: 'Nim. Python’s looks, C’s speed, and absolutely nobody’s job postings.' },
+  cr: { name: 'Crystal', roast: 'Crystal. Ruby that compiles. Gorgeous, fast, still waiting for a community to show up.' },
+  elm: { name: 'Elm', roast: 'Elm. No runtime exceptions, no side effects — and, lately, no new releases.' },
+  sol: { name: 'Solidity', roast: 'Solidity. Every bug is a heist. Move fast and lose strangers’ money.' },
+  vb: { name: 'Visual Basic', roast: 'Visual Basic. It’s 2026 and somewhere a button on your form still says `Command1`.' },
+  asm: { name: 'Assembly', roast: 'Assembly. Hand-carving instructions like it’s a craft fair. Equal parts respect and concern.' },
+  f90: { name: 'Fortran', roast: 'Fortran. Older than your parents and still doing math your laptop quietly cannot.' },
+  cob: { name: 'COBOL', roast: 'COBOL. Runs the banks, and not one living soul will admit to maintaining it.' },
+  pas: { name: 'Pascal', roast: 'Pascal. begin … end. A language that tucks you in and reads you a bedtime contract.' },
+  d: { name: 'D', roast: 'D. C++ with the baggage removed — and, tragically, the users removed along with it.' },
+  ps1: { name: 'PowerShell', roast: 'PowerShell. Bash for people who type `Get-ChildItem` and feel genuinely powerful.' },
+  sql: { name: 'SQL', roast: 'SQL. The only thing in this repo that actually knows where your data lives.' },
+  lisp: { name: 'Lisp', roast: 'Lisp. Parentheses nested so far down the editor gave up. Shortly after, so did you.' },
+  tcl: { name: 'Tcl', roast: 'Tcl. Everything is a string. Including, on a long enough timeline, you.' },
+  hx: { name: 'Haxe', roast: 'Haxe. One language, every platform, zero coworkers who have ever heard of it.' },
+  nix: { name: 'Nix', roast: 'Nix. Three days to make the build reproducible. The app still doesn’t start.' },
+  vue: { name: 'Vue', roast: 'Vue single-file components. HTML, CSS and JS all sharing one studio apartment.' },
+  svelte: { name: 'Svelte', roast: 'Svelte. A framework that compiles itself away, much like your weekend.' },
 };
 
 const EXT_ALIAS: Record<string, string> = {
   jsx: 'js', mjs: 'js', cjs: 'js',
+  mts: 'ts', cts: 'ts',
   hpp: 'cpp', cxx: 'cpp', hh: 'cpp', cc: 'cpp',
-  bash: 'sh', zsh: 'sh',
+  bash: 'sh', zsh: 'sh', ksh: 'sh',
   exs: 'ex',
+  kts: 'kt',
+  pyw: 'py', pyi: 'py',
+  pm: 'pl', perl: 'pl',
+  mm: 'objc', m: 'objc', // .m is usually Objective-C in a tracked repo (MATLAB is the rare exception)
+  cljs: 'clj', cljc: 'clj', edn: 'clj',
+  hrl: 'erl',
+  mli: 'ml',
+  fsx: 'fs', fsi: 'fs',
+  lhs: 'hs',
+  scm: 'lisp', ss: 'lisp', rkt: 'lisp', lsp: 'lisp', el: 'lisp', cl: 'lisp',
+  f: 'f90', f95: 'f90', f03: 'f90', for: 'f90',
+  cbl: 'cob',
+  pp: 'pas',
+  di: 'd',
+  vbs: 'vb',
+  psm1: 'ps1',
+  nims: 'nim',
+  gvy: 'groovy',
+  s: 'asm',
 };
 
 function parsePackageDeps(repo: RepoData): Set<string> {
@@ -363,15 +412,32 @@ const houseRules: Stat = {
     }
 
     const count = rules.length;
+    const top3 = rules.slice(0, 3).join(', ');
     let roast: string;
     if (count >= 5) {
-      roast = `${count} separate checks must approve every commit before it is permitted to exist. This is not a repository, it is a regime — and you are not a trusted citizen of it. Every keystroke is reviewed by machines that presume you guilty until proven compliant. Having read your commits, the machines are right to.`;
+      roast = pickVariant([
+        `${count} separate checks must approve every commit before it is permitted to exist. This is not a repository, it is a regime — and you are not a trusted citizen of it. Every keystroke is reviewed by machines that presume you guilty until proven compliant. Having read your commits, the machines are right to.`,
+        `${count} gates guard \`main\`. Nothing reaches it without clearing every one. This isn't a codebase, it's a checkpoint with a parking lot. The guards have read your work and tightened the rules accordingly.`,
+        `${count} automated checks stand between you and a commit. A fortress of distrust, brick by brick, all aimed squarely at you. And — having seen the history — fairly so.`,
+      ], repo.generatedAt, 'house-rules');
     } else if (count >= 2) {
-      roast = `${count} checkpoints stand between you and \`main\`, papers-please — ${rules.slice(0, 3).join(', ')}. A small bureaucracy of distrust, installed by people who have met you and drawn conclusions.`;
+      roast = pickVariant([
+        `${count} checkpoints stand between you and \`main\`, papers-please — ${top3}. A small bureaucracy of distrust, installed by people who have met you and drawn conclusions.`,
+        `${count} gates to clear before \`main\` — ${top3}. A modest little gauntlet, assembled by someone who learned the hard way.`,
+        `${count} checks guard the branch: ${top3}. Not quite a regime, but the paperwork has started.`,
+      ], repo.generatedAt, 'house-rules');
     } else if (count === 1) {
-      roast = `Exactly one rule: ${rules[0]}. A single, lonely seatbelt bolted into a car with no brakes, no doors, and a driver who has never once braked.`;
+      roast = pickVariant([
+        `Exactly one rule: ${rules[0]}. A single, lonely seatbelt bolted into a car with no brakes, no doors, and a driver who has never once braked.`,
+        `One rule, ${rules[0]}, standing alone against the chaos. Brave. Outnumbered. Doomed.`,
+        `A solitary rule: ${rules[0]}. One lock on a house with every window open.`,
+      ], repo.generatedAt, 'house-rules');
     } else {
-      roast = `No hooks. No linter. No coverage gate. No CI. No oversight of any kind. Every commit is an act of pure, unsupervised faith — and faith has never once compiled.`;
+      roast = pickVariant([
+        `No hooks. No linter. No coverage gate. No CI. No oversight of any kind. Every commit is an act of pure, unsupervised faith — and faith has never once compiled.`,
+        `Nothing guards this repo. No hook, no lint, no CI. Every commit goes straight to \`main\` on a handshake and a prayer.`,
+        `Zero rules. No gates, no checks, no safety net. The Wild West, except even the Wild West had a sheriff occasionally.`,
+      ], repo.generatedAt, 'house-rules');
     }
 
     return {
@@ -406,16 +472,36 @@ const todoGraveyard: Stat = {
 
     let roast: string;
     if (total === 0) {
-      roast = `Not one TODO. Not a single FIXME. Either this code is flawless — or you delete the evidence before anyone reads it. I know which one it is.`;
+      roast = pickVariant([
+        `Not one TODO. Not a single FIXME. Either this code is flawless — or you delete the evidence before anyone reads it. I know which one it is.`,
+        `Zero TODOs, zero FIXMEs. Suspiciously clean. Nobody writes perfect code; somebody scrubbed the confessions.`,
+        `No TODO, no FIXME, no HACK anywhere. Either sainthood or a very thorough cover-up. I'd bet on the second.`,
+      ], repo.generatedAt, 'todo-graveyard');
     } else {
       const spicy = examples[0];
       const tail = spicy ? ` My favourite: “${spicy.text}” (${spicy.path}).` : '';
       roast = roastByTier(total, [
-        { min: 500, template: `${total} unfinished promises rotting in the codebase (${parts.join(', ')}). This isn’t a backlog, it’s an archaeological site.${tail}` },
-        { min: 100, template: `${total} TODO-family markers (${parts.join(', ')}). A monument to the word "later". Later, as it turns out, never came.${tail}` },
-        { min: 20, template: `${total} loose ends scattered through the code (${parts.join(', ')}). Each one written with full confidence it’d be handled by Friday.${tail}` },
-        { min: 1, template: `${total} marker${total === 1 ? '' : 's'} of intent left behind (${parts.join(', ')}). Small. Honest. Doomed.${tail}` },
-      ]);
+        { min: 500, template: [
+          `${total} unfinished promises rotting in the codebase (${parts.join(', ')}). This isn’t a backlog, it’s an archaeological site.${tail}`,
+          `${total} TODO-family markers (${parts.join(', ')}) left to fossilise. Future devs will need a brush and a trowel.${tail}`,
+          `${total} loose ends (${parts.join(', ')}). Not a codebase, a landfill of good intentions.${tail}`,
+        ] },
+        { min: 100, template: [
+          `${total} TODO-family markers (${parts.join(', ')}). A monument to the word "later". Later, as it turns out, never came.${tail}`,
+          `${total} markers of intent (${parts.join(', ')}). A shrine to "I'll get to it". You will not get to it.${tail}`,
+          `${total} unkept promises in the code (${parts.join(', ')}). Each one a note to a future self who is, frankly, just as busy.${tail}`,
+        ] },
+        { min: 20, template: [
+          `${total} loose ends scattered through the code (${parts.join(', ')}). Each one written with full confidence it’d be handled by Friday.${tail}`,
+          `${total} TODO-family markers (${parts.join(', ')}). A respectable little pile of "not right now".${tail}`,
+          `${total} markers (${parts.join(', ')}) left behind. Optimistic. Each one sure it'd be the one that got done.${tail}`,
+        ] },
+        { min: 1, template: [
+          `${total} marker${total === 1 ? '' : 's'} of intent left behind (${parts.join(', ')}). Small. Honest. Doomed.${tail}`,
+          `${total} TODO-family note${total === 1 ? '' : 's'} (${parts.join(', ')}). A modest start to a great unfinished collection.${tail}`,
+          `Just ${total} marker${total === 1 ? '' : 's'} (${parts.join(', ')}). Restrained. The graveyard is young yet.${tail}`,
+        ] },
+      ], {}, repo.generatedAt, 'todo-graveyard');
     }
 
     return {

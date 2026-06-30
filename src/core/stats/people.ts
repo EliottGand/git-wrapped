@@ -1,6 +1,6 @@
 /** People & power dynamics. */
 import type { Stat } from '../types.js';
-import { byAuthor, displayName, idKey, isCurrentUser, maxBy, pct, roastByTier, sum } from './helpers.js';
+import { byAuthor, displayName, idKey, isCurrentUser, maxBy, pct, pickVariant, roastByTier, sum } from './helpers.js';
 
 const CONFIG_RE =
   /(^|\/)(package(-lock)?\.json|tsconfig.*\.json|\.eslintrc.*|\.prettierrc.*|webpack\..*|vite\.config\..*|babel\.config\..*|\.env.*|Dockerfile|docker-compose.*|\.github\/.*|.*\.ya?ml|metro\.config\..*|jest\.config\..*|.*\.config\.(js|ts|cjs|mjs))$/i;
@@ -21,10 +21,22 @@ const workhorse: Stat = {
       category: this.category,
       headline: `${displayName(top.id)} — ${top.commits.length} commits (${share}% of everything)`,
       roast: roastByTier(share, [
-        { min: 70, template: `${displayName(top.id)} authored ${share}% of all commits. This isn't a team, it's a one-person show with witnesses.` },
-        { min: 40, template: `${displayName(top.id)} carries ${share}% of the commits. Everyone else is decorative.` },
-        { min: 0, template: `${displayName(top.id)} leads with ${share}% of commits. A balanced team, how boring.` },
-      ]),
+        { min: 70, template: [
+          `${displayName(top.id)} authored ${share}% of all commits. This isn't a team, it's a one-person show with witnesses.`,
+          `${share}% of commits are ${displayName(top.id)}'s. The "team" is a rounding error attached to one person.`,
+          `${displayName(top.id)} owns ${share}% of the history. Everyone else is here for the credits.`,
+        ] },
+        { min: 40, template: [
+          `${displayName(top.id)} carries ${share}% of the commits. Everyone else is decorative.`,
+          `${share}% of commits belong to ${displayName(top.id)}. The rest of the team is set dressing.`,
+          `${displayName(top.id)} hauls ${share}% of the load. The others are mostly here for moral support.`,
+        ] },
+        { min: 0, template: [
+          `${displayName(top.id)} leads with ${share}% of commits. A balanced team, how boring.`,
+          `${displayName(top.id)} edges ahead at ${share}%. Suspiciously egalitarian. Where's the drama?`,
+          `Top spot: ${displayName(top.id)}, ${share}%. A flat, healthy distribution. Yawn.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { name: displayName(top.id), commits: top.commits.length, share },
     };
   },
@@ -54,7 +66,11 @@ const kingdom: Stat = {
       title: this.title,
       category: this.category,
       headline: `You rule \`${top[0]}\` — ${top[1]} of your file-touches land there`,
-      roast: `\`${top[0]}\` is your throne room. ${top[1]} touches. Nobody else dares refactor it, and frankly nobody else can read it.`,
+      roast: pickVariant([
+        `\`${top[0]}\` is your throne room. ${top[1]} touches. Nobody else dares refactor it, and frankly nobody else can read it.`,
+        `\`${top[0]}\` is yours — ${top[1]} touches. A private fiefdom. The locals have learned not to enter.`,
+        `You've colonised \`${top[0]}\` with ${top[1]} touches. It's less a directory now, more a personality.`,
+      ], repo.generatedAt, this.id),
       data: { dir: top[0], touches: top[1] },
     };
   },
@@ -84,9 +100,17 @@ const configWhisperer: Stat = {
       category: this.category,
       headline: `${top.name} — ${top.config} config-touching commits (${ratio}% of theirs)`,
       roast: roastByTier(ratio, [
-        { min: 50, template: `${top.name} spends ${ratio}% of their commits fiddling with config. A YAML whisperer. Possibly a YAML hostage.` },
-        { min: 0, template: `${top.name} touched config in ${top.config} commits. Someone has to keep webpack happy. Better them than me.` },
-      ]),
+        { min: 50, template: [
+          `${top.name} spends ${ratio}% of their commits fiddling with config. A YAML whisperer. Possibly a YAML hostage.`,
+          `${ratio}% of ${top.name}'s commits touch config. At this point the config touches back.`,
+          `${top.name} lives in the config files — ${ratio}% of their commits. A life spent appeasing build tools.`,
+        ] },
+        { min: 0, template: [
+          `${top.name} touched config in ${top.config} commits. Someone has to keep webpack happy. Better them than me.`,
+          `${top.name} fiddled with config across ${top.config} commits. Thankless, endless, and apparently theirs.`,
+          `Config duty falls to ${top.name}: ${top.config} commits of it. The team's designated YAML diplomat.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { name: top.name, config: top.config, ratio },
     };
   },
@@ -111,9 +135,17 @@ const destroyer: Stat = {
       category: this.category,
       headline: `${top.name} deleted ${top.deleted.toLocaleString()} lines`,
       roast: roastByTier(top.deleted, [
-        { min: 20000, template: `${top.name} deleted ${top.deleted.toLocaleString()} lines — a one-person austerity program. Efficient, ruthless, and faintly authoritarian. The others just watch it happen.` },
-        { min: 0, template: `${top.name} removed ${top.deleted.toLocaleString()} lines. The only true progress is deletion. Take notes.` },
-      ]),
+        { min: 20000, template: [
+          `${top.name} deleted ${top.deleted.toLocaleString()} lines — a one-person austerity program. Efficient, ruthless, and faintly authoritarian. The others just watch it happen.`,
+          `${top.name} erased ${top.deleted.toLocaleString()} lines. Not a contributor, a subtractor. The codebase flinches when they open the editor.`,
+          `${top.deleted.toLocaleString()} lines, gone, courtesy of ${top.name}. A demolition crew of one, working without a permit.`,
+        ] },
+        { min: 0, template: [
+          `${top.name} removed ${top.deleted.toLocaleString()} lines. The only true progress is deletion. Take notes.`,
+          `${top.name} deleted ${top.deleted.toLocaleString()} lines. The rare hero who knows less code is the goal.`,
+          `${top.deleted.toLocaleString()} lines removed by ${top.name}. Every deletion a small act of mercy.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { name: top.name, deleted: top.deleted },
     };
   },
@@ -140,9 +172,17 @@ const selfMerger: Stat = {
       category: this.category,
       headline: `${top.name} performed ${top.n} merges`,
       roast: roastByTier(top.n, [
-        { min: 50, template: `${top.name} merged ${top.n} times. Peer review is, to them, a quaint suggestion from a more cautious era.` },
-        { min: 1, template: `${top.name} owns ${top.n} merges. The keeper of the branches. The breaker of histories.` },
-      ]),
+        { min: 50, template: [
+          `${top.name} merged ${top.n} times. Peer review is, to them, a quaint suggestion from a more cautious era.`,
+          `${top.n} merges by ${top.name}. The branch protection is decorative; ${top.name} is the protection.`,
+          `${top.name} performed ${top.n} merges. Judge, jury, and merge button, all in one confident click.`,
+        ] },
+        { min: 1, template: [
+          `${top.name} owns ${top.n} merges. The keeper of the branches. The breaker of histories.`,
+          `${top.n} merges, all ${top.name}'s. The self-appointed gatekeeper of \`main\`.`,
+          `${top.name} handled ${top.n} merges. Someone has to push the button. They volunteered. Repeatedly.`,
+        ] },
+      ], {}, repo.generatedAt, this.id),
       data: { name: top.name, merges: top.n },
     };
   },
