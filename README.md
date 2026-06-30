@@ -8,9 +8,13 @@ the commits, which file keeps breaking, who codes at 3am, whose commit messages 
 condescending commentary.
 
 ```bash
+# run it on any repo, no install:
+bunx @eliottgdl/git-roast /path/to/any/repo   # or npx @eliottgdl/git-roast
+
+# or hack on it locally:
 npm install
 npm run build
-node dist/cli/index.js /path/to/any/repo     # or just `git-roast` once linked
+node dist/cli/index.js /path/to/any/repo       # or just `git-roast` once linked
 ```
 
 Flags:
