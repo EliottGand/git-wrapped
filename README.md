@@ -9,7 +9,7 @@ bunx @eliottgdl/git-wrapped /path/to/any/repo   # or npx @eliottgdl/git-wrapped
 Defaults to the current directory. `--plain` skips the animation, `--help` explains itself.
 
 No AI API key, no account, no network call. It reads your local git history and roasts
-you entirely offline. The roasts are templated and deterministic, not generated.
+you entirely offline.
 
 ## An honest opinion of this repository, from the algorithm
 
