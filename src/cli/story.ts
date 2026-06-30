@@ -80,7 +80,6 @@ export function buildStory(report: AnalysisReport): Beat[] {
       stream: c.stream,
     });
   });
-  beats.push(verdictBeat(report));
   beats.push({
     kind: 'share',
     lines: [{ text: 'A souvenir, so the others can see it too:', color: 'gray', italic: true }],
@@ -195,20 +194,29 @@ function computeSanity(report: AnalysisReport): Sanity {
   const profanity = n('profanity', 'count');
   const avg = agg.avgFilesPerCommit;
   const god = agg.godCommits;
+  const revertShare = reverts / total;
 
   const todoEx = (find('todo-graveyard')?.data?.examples as { text: string }[] | undefined)?.[0]?.text;
+
+  // god commits — keyed off the AVERAGE files per commit, in hard tiers: under 10 is
+  // basically fine, 10+ stings, 15+ hurts, 30+ is malpractice. (The god-commit COUNT
+  // only flavours the roast text; it doesn't drive the cost.)
+  const godCost =
+    avg >= 30 ? 24 : avg >= 20 ? 16 : avg >= 15 ? 11 : avg >= 10 ? 5 : avg >= 8 ? 2 : 0;
+  // reverts — a normal part of life under ~2% of commits, only a problem past that.
+  const revertCost = Math.min(8, Math.max(0, revertShare - 0.02) * 200);
 
   // Every candidate symptom. Only the ones that actually fired (cost > 0) survive.
   const all: Symptom[] = [
     {
-      tag: 'god commits',
-      cost: Math.min(20, Math.max(0, (avg - 3) * 2) + god * 2),
-      shock: `${avg.toFixed(0)} files per commit?! And ${num(god)} of them touched 15+ at once — one detonated across ${num(agg.maxFilesInCommit)}. Have you never heard of an atomic commit?`,
+      tag: 'AI ghostwriting',
+      cost: Math.min(40, aiShare * 0.9),
+      shock: `${aiShare}% of the log (${num(aiCount)} messages) was written by an AI. You outsourced the one sentence that describes what you did. To a robot.`,
     },
     {
-      tag: 'AI ghostwriting',
-      cost: Math.min(28, aiShare * 0.6),
-      shock: `${aiShare}% of the log (${num(aiCount)} messages) was written by an AI. You outsourced the one sentence that describes what you did. To a robot.`,
+      tag: 'god commits',
+      cost: godCost,
+      shock: `${avg.toFixed(0)} files per commit, and ${num(god)} commits that touched 15+ at once — one detonated across ${num(agg.maxFilesInCommit)}. Have you ever, even once, made an atomic commit?`,
     },
     {
       tag: 'fix-on-fix',
@@ -232,8 +240,8 @@ function computeSanity(report: AnalysisReport): Sanity {
     },
     {
       tag: 'reverts',
-      cost: Math.min(8, reverts * 2),
-      shock: `${reverts} reverts. You shipped it, panicked, and yanked it back — in front of everyone.`,
+      cost: revertCost,
+      shock: `${reverts} reverts (${(revertShare * 100).toFixed(1)}% of commits). You shipped it, panicked, and yanked it back — in front of everyone.`,
     },
     {
       tag: 'swearing',
@@ -243,30 +251,13 @@ function computeSanity(report: AnalysisReport): Sanity {
   ];
 
   const symptoms = all.filter((s) => s.cost > 0.5).sort((a, b) => b.cost - a.cost);
-  const score = Math.max(0, Math.min(100, Math.round(100 - symptoms.reduce((s, p) => s + p.cost, 0))));
+  // A repo whose commit log was written by actual humans earns points back — a small
+  // reward that fades out as AI involvement climbs past ~5%.
+  const humanBonus = aiShare < 5 ? (5 - aiShare) * 2 : 0;
+  const score = Math.max(0, Math.min(100, Math.round(100 - symptoms.reduce((s, p) => s + p.cost, 0) + humanBonus)));
   const label =
     score >= 85 ? 'Lucid' : score >= 65 ? 'Stable-ish' : score >= 45 ? 'Fraying' : score >= 25 ? 'Concerning' : 'In crisis';
   return { score, label, symptoms };
-}
-
-function verdictBeat(report: AnalysisReport): Beat {
-  const guilt = report.results.filter((r) => r.category === 'smells' || r.category === 'code' || r.category === 'project').length;
-  const seed = seedOf(report);
-  const openers = ['I’ve seen enough.', 'The evidence is in.', 'I have reached a verdict.', 'Court is adjourned.'];
-  const sanity = computeSanity(report);
-  const culprit = sanity.symptoms[0];
-  return {
-    kind: 'typewriter',
-    ops: [
-      { t: 'type', text: openers[seed % openers.length]!, cps: 22 },
-      { t: 'pause', ms: 600 },
-      { t: 'nl' },
-      { t: 'type', text: verdict(guilt, seed), cps: 36 },
-      { t: 'pause', ms: 700 },
-      { t: 'nl' },
-      { t: 'type', text: `Final Sanity Index: ${sanity.score}/100 — ${sanity.label}.${culprit ? ` Chiefly: ${culprit.tag}.` : ''}`, cps: 30 },
-    ],
-  };
 }
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -658,7 +649,7 @@ function leaderboard(authors: AuthorStat[], metric: 'commits' | 'added'): string
 
 /** The shareable, clipboard-ready recap — ranking graphs first, then the verdict. */
 export function buildRecap(report: AnalysisReport): string {
-  const { aggregates: agg, results } = report;
+  const { aggregates: agg } = report;
   const blocks: string[] = [];
 
   blocks.push(
@@ -685,8 +676,7 @@ export function buildRecap(report: AnalysisReport): string {
   const sanity = computeSanity(report);
   blocks.push(`🧠 Sanity Index: ${sanity.score}/100 (${sanity.label})`);
 
-  const guilt = results.filter((r) => r.category === 'smells' || r.category === 'code' || r.category === 'project').length;
-  blocks.push(`⚖️  ${verdict(guilt, seedOf(report))}\n\n— git-wrapped`);
+  blocks.push(`⚖️  ${verdict(sanity.score, seedOf(report))}\n\n— git-wrapped`);
 
   return blocks.join('\n\n');
 }

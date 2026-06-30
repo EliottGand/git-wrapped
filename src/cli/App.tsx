@@ -196,8 +196,10 @@ function ShareView({ beat, frozen, onDone }: { beat: Beat & { kind: 'share' }; f
         {divider}
       </Text>
       {beat.recap.split('\n').map((line, i) => (
+        // Ink gives an empty <Text> zero height, collapsing the blank lines that
+        // separate sections — render a space so the gaps actually show.
         <Text key={i} color="greenBright">
-          {line}
+          {line === '' ? ' ' : line}
         </Text>
       ))}
       <Text color="gray" dimColor>

@@ -76,9 +76,12 @@ const VERDICTS: Record<'high' | 'mid' | 'low' | 'clean', string[]> = {
   ],
 };
 
-/** A final verdict line keyed off how many "guilt" stats fired. `seed` rotates the wording. */
-export function verdict(guiltCount: number, seed = 0): string {
-  const tier = guiltCount >= 5 ? 'high' : guiltCount >= 3 ? 'mid' : guiltCount >= 1 ? 'low' : 'clean';
+/**
+ * A final verdict line keyed off the Repository Sanity Score (0 = crisis, 100 = lucid),
+ * so the closing line always matches the gauge the user just saw. `seed` rotates the wording.
+ */
+export function verdict(sanityScore: number, seed = 0): string {
+  const tier = sanityScore < 35 ? 'high' : sanityScore < 55 ? 'mid' : sanityScore < 75 ? 'low' : 'clean';
   const pool = VERDICTS[tier];
   return pool[Math.abs(Math.floor(seed)) % pool.length]!;
 }
