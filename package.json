@@ -16,6 +16,13 @@
     "type": "git",
     "url": "git+https://github.com/EliottGand/git-wrapped.git"
   },
+  "homepage": "https://github.com/EliottGand/git-wrapped#readme",
+  "bugs": {
+    "url": "https://github.com/EliottGand/git-wrapped/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "bun src/cli/index.tsx",
     "build": "tsc -p tsconfig.json",
