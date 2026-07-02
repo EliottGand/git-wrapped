@@ -19,7 +19,7 @@ export interface SceneLine {
 }
 
 export type Graph =
-  | { type: 'bars'; rows: { label: string; value: number; suffix?: string; color?: string }[]; barColor?: string; labelColor?: string }
+  | { type: 'bars'; rows: { label: string; value: number; suffix?: string; color?: string; dim?: boolean }[]; barColor?: string; labelColor?: string }
   | { type: 'clock'; hours: number[] }
   | { type: 'gauge'; score: number; label: string; caption?: string; detail?: SceneLine[] };
 
@@ -433,25 +433,31 @@ function rankHypeTechs(techs: { name: string }[]): { name: string; hype: number 
  * rotate per run, but always pair a joke with a concrete example.
  */
 function hypeGraph(ranked: { name: string; hype: number }[], seed: number): Graph {
-  const top = { label: '📈', value: 96, color: 'gray', suffix: pickVariant([
+  // The three gray rows are fixed SCALE ANCHORS, not part of your stack — so their
+  // suffix leads with the same `NN/100` the real techs use (one consistent scale),
+  // then "the ceiling / the floor / where 'normal' sits" spells out that they're
+  // reference points, with the rotating joke as a concrete example.
+  const top = { label: '📈', value: 96, color: 'gray', dim: true, suffix: `96/100  scale ref · peak hype, e.g. ${pickVariant([
     'Rust — your coworker won’t stop bringing it up',
     'Bun — three benchmarks and a manifesto',
     'htmx — it’s just HTML, they swear',
     'Zig — the cult is small and very loud',
-  ], seed, 'hype-top') };
-  const grass = { label: '🌿', value: 35, color: 'gray', suffix: pickVariant([
+  ], seed, 'hype-top')}` };
+  const grass = { label: '🌿', value: 35, color: 'gray', dim: true, suffix: `35/100  scale ref · a “normal” pick, e.g. ${pickVariant([
     'Express — boring, balanced, employable',
     'Postgres — quietly excellent, zero drama',
     'REST — no GitHub stars, no problems',
     'cron — it just works, it always worked',
-  ], seed, 'hype-mid') };
-  const bottom = { label: '🦕', value: 5, color: 'gray', suffix: pickVariant([
+  ], seed, 'hype-mid')}` };
+  const bottom = { label: '🦕', value: 5, color: 'gray', dim: true, suffix: `5/100  scale ref · a fossil, e.g. ${pickVariant([
     'jQuery — load-bearing and immortal',
     'COBOL — still running a bank, somehow',
     'Perl — a 2003 script nobody dares delete',
     'Fortran — older than your parents, still computing',
-  ], seed, 'hype-bottom') };
-  const techRows = ranked.map((t) => ({ label: t.name, value: t.hype, color: hypeColor(t.hype), suffix: `${t.hype}/100  ${hypeNote(t.hype)}` }));
+  ], seed, 'hype-bottom')}` };
+  // Real techs from YOUR repo — flagged "← yours" so they're never mistaken for the
+  // three fixed scale anchors above/below them (which are just examples for scale).
+  const techRows = ranked.map((t) => ({ label: t.name, value: t.hype, color: hypeColor(t.hype), suffix: `${t.hype}/100  ${hypeNote(t.hype)}  ← yours` }));
   // 🌿 sorts in by hype, so it lands wherever "normal" falls relative to your stack.
   const middle = [...techRows, grass].sort((a, b) => b.value - a.value);
   return {
@@ -505,14 +511,14 @@ function buildCandidates(report: AnalysisReport): Candidate[] {
   if (headline) crimeLines.push({ text: headline.roast, color: 'whiteBright', bold: true });
   if (notable.length > 1) {
     crimeLines.push({ text: pickVariant([
-      'The over-hyped and the over-the-hill, on the hype-o-meter:',
-      'Your best flex and your worst fossil, plotted on hype:',
-      'Where the picks worth mentioning land on the hype curve:',
+      'Your picks (marked ← yours) on the hype-o-meter. The 📈 🌿 🦕 rows are fixed reference marks, not your stack:',
+      'Where your picks land on the hype curve (← yours). 📈 🌿 🦕 are just the scale, not things you use:',
+      'Your best flex and worst fossil, plotted on hype (← yours). 📈 🌿 🦕 are reference marks only:',
     ], seed, 'crime-hype'), color: 'gray' });
   } else if (notable.length === 1) {
     crimeLines.push({ text: pickVariant([
-      'The one pick worth mentioning, on the hype-o-meter:',
-      'Where your one notable choice lands on the hype curve:',
+      'Your one notable pick (marked ← yours) on the hype-o-meter. The 📈 🌿 🦕 rows are fixed reference marks, not your stack:',
+      'Where your one notable choice lands on the hype curve (← yours). 📈 🌿 🦕 are just the scale, not things you use:',
     ], seed, 'crime-hype-1'), color: 'gray' });
   } else if (techs.length > 0) {
     // Everything detected was boring substrate — that IS the joke.
@@ -979,7 +985,8 @@ function authorGraph(agg: AnalysisReport['aggregates']): Graph {
     rows: agg.topAuthors.slice(0, 6).map((a) => ({
       label: a.name,
       value: a.commits,
-      suffix: `${a.commits} commits`,
+      // Mark your own row so it's obvious which bar is yours, not just a colour cue.
+      suffix: `${a.commits} commits${a.isYou ? '  ← you' : ''}`,
       color: a.isYou ? 'greenBright' : 'magenta',
     })),
   };

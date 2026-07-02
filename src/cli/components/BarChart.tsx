@@ -6,6 +6,8 @@ export interface BarRow {
   value: number;
   suffix?: string;
   color?: string;
+  /** Fade the whole row (label + bar + text) so foreground rows stand out against it. */
+  dim?: boolean;
 }
 
 /** Horizontal bar chart. Bars grow from 0 → full on mount unless `animate` is false. */
@@ -47,16 +49,25 @@ export function BarChart({
       {rows.map((r, i) => {
         const full = Math.round((r.value / max) * width);
         const filled = Math.max(r.value > 0 ? 1 : 0, Math.round(full * frac));
-        const label = r.label.length > labelW ? r.label.slice(0, labelW - 1) + '…' : r.label.padEnd(labelW);
         return (
-          <Text key={i}>
-            <Text color={labelColor}>{label} </Text>
-            <Text color={r.color ?? barColor}>{'█'.repeat(filled)}</Text>
-            <Text color="gray" dimColor>
-              {'░'.repeat(Math.max(0, width - filled))}
+          // Reserve a fixed-width column for the label so bars start on the same
+          // column across rows. Using an ink Box (not manual .padEnd) means the
+          // width is measured in terminal cells, so double-width glyphs like the
+          // hype-meter emoji (📈 🌿 🦕) don't knock the bars out of alignment.
+          <Box key={i}>
+            <Box width={labelW} flexShrink={0} flexGrow={0}>
+              <Text color={r.dim ? 'gray' : labelColor} dimColor={r.dim} wrap="truncate">
+                {r.label}
+              </Text>
+            </Box>
+            <Text>
+              <Text color={r.color ?? barColor} dimColor={r.dim}> {'█'.repeat(filled)}</Text>
+              <Text color="gray" dimColor>
+                {'░'.repeat(Math.max(0, width - filled))}
+              </Text>
+              <Text color={r.dim ? 'gray' : 'white'} dimColor={r.dim}> {r.suffix ?? String(r.value)}</Text>
             </Text>
-            <Text color="white"> {r.suffix ?? String(r.value)}</Text>
-          </Text>
+          </Box>
         );
       })}
     </Box>
