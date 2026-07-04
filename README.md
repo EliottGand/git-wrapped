@@ -40,6 +40,7 @@ A full-screen, animated recap that walks your repo through the stations of judgm
 | --- | --- |
 | 🏆 **The Scoreboard** | Commits, churn, the raw numbers you can't hide from |
 | 👥 **Power & People** | Who really runs this repo, merged identities and all |
+| 📈 **The Fever Chart** | Your repo's pulse, month by month — and its record ("the busiest month since June 2021") |
 | 🌙 **Your Habits (Concerning)** | Your commit clock — yes, it sees the 2 a.m. commits |
 | 🔍 **Commit Message Forensics** | Every `fix`, `wip`, and `asdf` entered into evidence |
 | 🚨 **Evidence of Guilt** | The smells you hoped nobody would `git blame` |
@@ -47,6 +48,8 @@ A full-screen, animated recap that walks your repo through the stations of judgm
 | 🧠 **The Verdict** | A sanity score out of 100 and an opinion you didn't ask for |
 
 Press `d` on the diagnosis to unfold the full **sanity-score breakdown**. On big repos an animated loader keeps you company (and keeps roasting) while history ingests.
+
+It ends with a clipboard-ready recap built for the team channel: commit and lines leaderboards (additions **and** deletions), the 🦇 Batman, 🚒 Firefighter and 🧹 Janitor awards, your peak month, and the sanity verdict.
 
 ## 🔒 No cloud, no key, no network
 

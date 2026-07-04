@@ -62,19 +62,19 @@ const totals: Stat = {
       headline: `${commits.length} commits · +${added.toLocaleString()} / -${deleted.toLocaleString()} lines · ${authors} ${pluralize(authors, 'human')}`,
       roast: roastByTier(deleted === 0 ? 0 : added / Math.max(1, deleted), [
         { min: 5, template: [
-          `${added.toLocaleString()} lines in, only ${deleted.toLocaleString()} out. A hoarder. This codebase only ever grows.`,
-          `${added.toLocaleString()} added, a measly ${deleted.toLocaleString()} removed. Nothing here is ever deleted, only buried.`,
-          `${added.toLocaleString()} lines written, ${deleted.toLocaleString()} taken back. A landfill with a build step.`,
+          `${added.toLocaleString()} in, only ${deleted.toLocaleString()} out. A hoarder. It only ever grows.`,
+          `${added.toLocaleString()} added, a measly ${deleted.toLocaleString()} removed. Nothing's deleted, only buried.`,
+          `${added.toLocaleString()} written, ${deleted.toLocaleString()} taken back. A landfill with a build step.`,
         ] },
         { min: 1.2, template: [
-          `You wrote far more than you removed (${added.toLocaleString()} vs ${deleted.toLocaleString()}). Every line left behind is one someone else now has to maintain.`,
-          `${added.toLocaleString()} in, ${deleted.toLocaleString()} out. The repo grows faster than anyone can read it. That's the plan, apparently.`,
-          `More added than removed (${added.toLocaleString()} vs ${deleted.toLocaleString()}). Each surviving line is a future maintenance bill, mailed to a stranger.`,
+          `${added.toLocaleString()} in, ${deleted.toLocaleString()} out. Every line left is one someone else maintains.`,
+          `${added.toLocaleString()} in, ${deleted.toLocaleString()} out. Grows faster than anyone can read it.`,
+          `${added.toLocaleString()} vs ${deleted.toLocaleString()} removed. Each surviving line is a future bill.`,
         ] },
         { min: 0, template: [
-          `${deleted.toLocaleString()} deleted against ${added.toLocaleString()} added. Refreshingly destructive. I respect it.`,
-          `${deleted.toLocaleString()} lines removed vs ${added.toLocaleString()} added. The rare repo that knows the best code is no code.`,
-          `${deleted.toLocaleString()} out, ${added.toLocaleString()} in. Pruned, ruthless, lean. Unsettlingly healthy.`,
+          `${deleted.toLocaleString()} deleted vs ${added.toLocaleString()} added. Refreshingly destructive.`,
+          `${deleted.toLocaleString()} removed vs ${added.toLocaleString()} added. The best code is no code.`,
+          `${deleted.toLocaleString()} out, ${added.toLocaleString()} in. Pruned, ruthless, unsettlingly healthy.`,
         ] },
       ], {}, repo.generatedAt, this.id),
       data: { commits: commits.length, added, deleted, authors },

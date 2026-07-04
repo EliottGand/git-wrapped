@@ -186,7 +186,50 @@ function SceneView({ beat, frozen, skip, onDone }: { beat: Beat & { kind: 'scene
 function GraphView({ graph, animate }: { graph: Graph; animate: boolean }) {
   if (graph.type === 'clock') return <Clock hours={graph.hours} />;
   if (graph.type === 'gauge') return <Gauge score={graph.score} label={graph.label} caption={graph.caption} />;
-  return <BarChart rows={graph.rows} animate={animate} barColor={graph.barColor} labelColor={graph.labelColor} />;
+  if (graph.type === 'spark') return <Spark rows={graph.rows} axis={graph.axis} />;
+  return <BarChart rows={graph.rows} animate={animate} barColor={graph.barColor} labelColor={graph.labelColor} width={graph.width} />;
+}
+
+const TICKS = '▁▂▃▄▅▆▇█';
+
+/**
+ * The fever chart: one sparkline row per year, one cell per month, all rows sharing a
+ * single scale so the record month towers. The maximum cell burns red; months outside
+ * the repo's lifetime (null) render as blanks, so a mid-year birth reads correctly.
+ */
+function Spark({ rows, axis }: { rows: { label: string; cells: (number | null)[]; suffix?: string }[]; axis?: string }) {
+  const max = Math.max(1, ...rows.flatMap((r) => r.cells.map((c) => c ?? 0)));
+  const labelW = Math.max(...rows.map((r) => r.label.length));
+  const tick = (c: number) => (c === 0 ? TICKS[0]! : TICKS[Math.max(1, Math.round((c / max) * 7))]!);
+  return (
+    <Box flexDirection="column">
+      {rows.map((r, i) => (
+        <Box key={i}>
+          <Box width={labelW + 1} flexShrink={0} flexGrow={0}>
+            <Text color="gray">{r.label}</Text>
+          </Box>
+          <Text>
+            {r.cells.map((c, j) => (
+              <Text key={j} color={c === max ? 'redBright' : c ? 'cyan' : 'gray'} dimColor={!c} bold={c === max}>
+                {c === null ? ' ' : tick(c)}
+              </Text>
+            ))}
+            <Text color="white"> {r.suffix ?? ''}</Text>
+          </Text>
+        </Box>
+      ))}
+      {axis ? (
+        <Box>
+          <Box width={labelW + 1} flexShrink={0} flexGrow={0}>
+            <Text> </Text>
+          </Box>
+          <Text color="gray" dimColor>
+            {axis}
+          </Text>
+        </Box>
+      ) : null}
+    </Box>
+  );
 }
 
 /** A red→yellow→green sanity gauge. Filled length AND colour both signal how bad it is. */

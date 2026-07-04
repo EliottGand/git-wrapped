@@ -54,19 +54,26 @@ export function BarChart({
           // column across rows. Using an ink Box (not manual .padEnd) means the
           // width is measured in terminal cells, so double-width glyphs like the
           // hype-meter emoji (📈 🌿 🦕) don't knock the bars out of alignment.
+          // The bar itself is a non-shrinking column too — only the trailing suffix
+          // is allowed to shrink and truncate, so a narrow terminal clips the caption
+          // instead of wrapping it into a ragged, misaligned second line.
           <Box key={i}>
             <Box width={labelW} flexShrink={0} flexGrow={0}>
               <Text color={r.dim ? 'gray' : labelColor} dimColor={r.dim} wrap="truncate">
                 {r.label}
               </Text>
             </Box>
-            <Text>
+            <Box flexShrink={0} flexGrow={0}>
               <Text color={r.color ?? barColor} dimColor={r.dim}> {'█'.repeat(filled)}</Text>
               <Text color="gray" dimColor>
                 {'░'.repeat(Math.max(0, width - filled))}
               </Text>
-              <Text color={r.dim ? 'gray' : 'white'} dimColor={r.dim}> {r.suffix ?? String(r.value)}</Text>
-            </Text>
+            </Box>
+            <Box flexShrink={1} flexGrow={0}>
+              <Text color={r.dim ? 'gray' : 'white'} dimColor={r.dim} wrap="truncate-end">
+                {' '}{r.suffix ?? String(r.value)}
+              </Text>
+            </Box>
           </Box>
         );
       })}

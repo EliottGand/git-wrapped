@@ -4,14 +4,24 @@
  * a graph". Kept in core (pure) so any future port reuses the same numbers.
  */
 import type { RepoData } from './types.js';
-import { displayName, ext, idKey, isNoiseFile, LOOSE_FIX_RE } from './stats/helpers.js';
+import { displayName, ext, idKey, isNoiseFile, LOOSE_FIX_RE, REFACTOR_RE } from './stats/helpers.js';
 
 export interface AuthorStat {
   name: string;
   commits: number;
   added: number;
   deleted: number;
+  /** Commits whose subject reads like a fix (LOOSE_FIX_RE). */
+  fixes: number;
+  /** Commits whose subject reads like a refactor/cleanup (REFACTOR_RE). */
+  refactors: number;
   isYou: boolean;
+}
+
+/** Commit count for one calendar month, `key` = "YYYY-MM" (UTC). */
+export interface MonthCount {
+  key: string;
+  count: number;
 }
 
 export interface FileStat {
@@ -47,6 +57,14 @@ export interface Aggregates {
   topFixFiles: FileStat[];
   /** Total number of (non-merge) commits whose subject reads like a fix. */
   fixCommits: number;
+  /**
+   * Lines (added + deleted) touched by those fix commits. Lets the sanity index weight
+   * the fix share by effort, not just count — a one-line typo patch shouldn't count the
+   * same as a week of feature work when judging "how much of this repo is firefighting".
+   */
+  fixLines: number;
+  /** Commits per calendar month, ascending and gap-free from first to last month. */
+  monthlyCommits: MonthCount[];
   batman: BatStat[];
   /** Mean number of files touched per (non-merge) commit. */
   avgFilesPerCommit: number;
@@ -70,8 +88,10 @@ export function computeAggregates(repo: RepoData): Aggregates {
   const churn = new Map<string, number>();
   const fixChurn = new Map<string, number>();
   const langs = new Map<string, number>();
+  const monthly = new Map<string, number>();
   let totalFilesTouched = 0;
   let fixCommits = 0;
+  let fixLines = 0;
   let godCommits = 0;
   let maxFilesInCommit = 0;
 
@@ -80,24 +100,30 @@ export function computeAggregates(repo: RepoData): Aggregates {
     const name = displayName(c.author);
     const isYou = youKey != null && key === youKey;
 
-    const a = authors.get(key) ?? { name, commits: 0, added: 0, deleted: 0, isYou };
+    const a = authors.get(key) ?? { name, commits: 0, added: 0, deleted: 0, fixes: 0, refactors: 0, isYou };
     a.commits += 1;
     for (const f of c.files) {
       a.added += f.added ?? 0;
       a.deleted += f.deleted ?? 0;
       churn.set(f.path, (churn.get(f.path) ?? 0) + 1);
     }
+    if (REFACTOR_RE.test(c.subject)) a.refactors += 1;
     authors.set(key, a);
+
+    const month = new Date(c.authorDate * 1000).toISOString().slice(0, 7);
+    monthly.set(month, (monthly.get(month) ?? 0) + 1);
 
     // Fix-prone files: count each file at most once per fix commit, so a file is
     // ranked by how many bug/fix commits it appeared in, not how big they were.
     if (LOOSE_FIX_RE.test(c.subject)) {
       fixCommits += 1;
+      a.fixes += 1;
       const seen = new Set<string>();
       for (const f of c.files) {
         if (seen.has(f.path)) continue;
         seen.add(f.path);
         fixChurn.set(f.path, (fixChurn.get(f.path) ?? 0) + 1);
+        fixLines += (f.added ?? 0) + (f.deleted ?? 0);
       }
     }
 
@@ -142,6 +168,22 @@ export function computeAggregates(repo: RepoData): Aggregates {
   const first = commits[commits.length - 1];
   const ageDays = first ? Math.max(0, Math.floor((repo.generatedAt - first.authorDate) / 86400)) : 0;
 
+  // A contiguous month-by-month series (zeros filled in), so the fever chart can show
+  // the silences as clearly as the spikes.
+  const monthlyCommits: MonthCount[] = [];
+  if (monthly.size > 0) {
+    const keys = [...monthly.keys()].sort();
+    const [firstKey, lastKey] = [keys[0]!, keys[keys.length - 1]!];
+    let [y, m] = firstKey.split('-').map(Number) as [number, number];
+    const [ly, lm] = lastKey.split('-').map(Number) as [number, number];
+    while (y < ly || (y === ly && m <= lm)) {
+      const key = `${y}-${String(m).padStart(2, '0')}`;
+      monthlyCommits.push({ key, count: monthly.get(key) ?? 0 });
+      m += 1;
+      if (m > 12) { m = 1; y += 1; }
+    }
+  }
+
   return {
     repoName: repo.root.split('/').pop() || repo.root,
     ageDays,
@@ -159,6 +201,8 @@ export function computeAggregates(repo: RepoData): Aggregates {
     topChurnFiles,
     topFixFiles,
     fixCommits,
+    fixLines,
+    monthlyCommits,
     batman: [...bats.values()].sort((x, y) => y.score - x.score),
     avgFilesPerCommit: totalCommits ? totalFilesTouched / totalCommits : 0,
     godCommits,

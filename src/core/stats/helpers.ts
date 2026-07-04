@@ -7,6 +7,13 @@ import type { Commit, Identity, RepoData } from '../types.js';
  */
 export const LOOSE_FIX_RE = /\bfix(e[ds])?\b|\bhotfix\b|\bbugfix\b|\brevert\b/i;
 
+/**
+ * A commit whose subject reads like a refactor/cleanup. Powers the "Janitor" award —
+ * the person who tidies the most — so deletion and restructuring get celebrated,
+ * not just line-adding.
+ */
+export const REFACTOR_RE = /\brefactor(ed|ing|s)?\b|\brework(ed|ing)?\b|\brestructur|\bclean\s?-?up\b|\bsimplif(y|ie[ds])\b|\btid(y|ied|ying)\b/i;
+
 /** Canonical key for an identity — email if present, else lowercased name. */
 export function idKey(id: Identity): string {
   return (id.email || id.name).toLowerCase();

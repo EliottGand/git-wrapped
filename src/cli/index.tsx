@@ -65,6 +65,15 @@ function graphLines(graph: Graph): string[] {
     const bar = `${'█'.repeat(filled)}${'░'.repeat(W - filled)}  ${graph.score}/100 — ${graph.label}`;
     return graph.caption ? [graph.caption, bar] : [bar];
   }
+  if (graph.type === 'spark') {
+    const max = Math.max(1, ...graph.rows.flatMap((r) => r.cells.map((c) => c ?? 0)));
+    const labelW = Math.max(...graph.rows.map((r) => r.label.length));
+    const tick = (c: number | null) =>
+      c === null ? ' ' : c === 0 ? TICKS[0]! : TICKS[Math.max(1, Math.round((c / max) * 7))]!;
+    const out = graph.rows.map((r) => `${r.label.padEnd(labelW)} ${r.cells.map(tick).join('')} ${r.suffix ?? ''}`);
+    if (graph.axis) out.push(`${' '.repeat(labelW)} ${graph.axis}`);
+    return out;
+  }
   const max = Math.max(1, ...graph.rows.map((r) => r.value));
   const labelW = Math.min(20, Math.max(...graph.rows.map((r) => r.label.length)));
   return graph.rows.map((r) => {

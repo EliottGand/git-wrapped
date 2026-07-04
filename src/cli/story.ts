@@ -4,7 +4,7 @@
  * into chapters, and decides what gets a graph. Pure data — the App renders it.
  */
 import type { AnalysisReport } from '../core/analyze.js';
-import type { AuthorStat } from '../core/aggregates.js';
+import type { AuthorStat, MonthCount } from '../core/aggregates.js';
 import type { StatResult } from '../core/types.js';
 import { pickVariant } from '../core/stats/helpers.js';
 import { verdict } from './persona.js';
@@ -19,9 +19,11 @@ export interface SceneLine {
 }
 
 export type Graph =
-  | { type: 'bars'; rows: { label: string; value: number; suffix?: string; color?: string; dim?: boolean }[]; barColor?: string; labelColor?: string }
+  | { type: 'bars'; rows: { label: string; value: number; suffix?: string; color?: string; dim?: boolean }[]; barColor?: string; labelColor?: string; width?: number }
   | { type: 'clock'; hours: number[] }
-  | { type: 'gauge'; score: number; label: string; caption?: string; detail?: SceneLine[] };
+  | { type: 'gauge'; score: number; label: string; caption?: string; detail?: SceneLine[] }
+  /** One sparkline row per year: 12 monthly cells (null = before/after the repo's life). */
+  | { type: 'spark'; rows: { label: string; cells: (number | null)[]; suffix?: string }[]; axis?: string };
 
 export type Beat =
   | { kind: 'typewriter'; ops: TypeOp[] }
@@ -223,6 +225,15 @@ function computeSanity(report: AnalysisReport): Sanity {
   // so "% of commits that are fixes" is consistent everywhere.
   const fixes = agg.fixCommits;
   const fixPct = Math.round((fixes / total) * 100);
+  // Commit COUNT alone over-penalizes teams whose features land as few big commits
+  // while fixes land as many one-liners (25% of commits can be 3% of the work). So
+  // the penalty runs off the geometric mean of "share of commits" and "share of lines
+  // changed" — a fix wave only scores as sick as it is BOTH frequent and substantial.
+  const totalLines = agg.totalAdded + agg.totalDeleted;
+  const fixLinePct = totalLines > 0 ? Math.round((agg.fixLines / totalLines) * 100) : null;
+  const fixWeighted = fixLinePct === null
+    ? fixPct
+    : Math.round(Math.sqrt(((fixes / total) * 100) * ((agg.fixLines / totalLines) * 100)));
   const reverts = n('reverter', 'count');
   const profanity = n('profanity', 'count');
   const avg = agg.avgFilesPerCommit;
@@ -260,15 +271,24 @@ function computeSanity(report: AnalysisReport): Sanity {
       ], seed, 'shock-god'),
     },
     {
-      // The bigger the share of commits that are fixes, the sicker the repo — this is
-      // one of the heaviest penalties, scaling straight off the fix percentage.
+      // The bigger the share of the repo that is fixing itself, the sicker it is — one
+      // of the heaviest penalties. Runs off the commit-share × line-share blend above,
+      // and the roast quotes both numbers so nobody feels cheated by the arithmetic.
       tag: 'fix-on-fix',
-      cost: Math.min(35, fixPct * 1.1),
-      shock: pickVariant([
-        `${fixPct}% of your commits exist only to fix an earlier commit. You are bailing water into the very boat you keep drilling holes in.`,
-        `${fixPct}% of all commits are fixes for previous commits. Two steps forward, one frantic patch back, forever.`,
-        `${fixPct}% of the history is just fixing the rest of the history. The codebase is a dog chasing its own bugs.`,
-      ], seed, 'shock-fix'),
+      cost: Math.min(35, fixWeighted * 1.1),
+      shock: (() => {
+        const linesNote =
+          fixLinePct === null
+            ? ''
+            : fixLinePct < fixPct / 2
+              ? ` — though only ${fixLinePct}% of the lines changed, so mostly small bandages`
+              : ` (${fixLinePct}% of all lines changed)`;
+        return pickVariant([
+          `${fixPct}% of your commits exist only to fix an earlier commit${linesNote}. You are bailing water into the very boat you keep drilling holes in.`,
+          `${fixPct}% of all commits are fixes for previous commits${linesNote}. Two steps forward, one frantic patch back, forever.`,
+          `${fixPct}% of the history is just fixing the rest of the history${linesNote}. The codebase is a dog chasing its own bugs.`,
+        ], seed, 'shock-fix');
+      })(),
     },
     {
       tag: 'comment confessions',
@@ -353,6 +373,38 @@ function sanityDetail(sanity: Sanity): SceneLine[] {
 }
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** "2026-06" → "June 2026". */
+function monthLabel(key: string): string {
+  const [y, m] = key.split('-');
+  return `${MONTH_NAMES[Number(m) - 1] ?? '?'} ${y}`;
+}
+
+/**
+ * The fever chart: one sparkline row per year, 12 monthly cells each, all scaled to
+ * the same maximum so the record month visibly towers over the rest of the history.
+ * Capped to the last 8 years so an ancient repo doesn't scroll the chapter away.
+ */
+function pulseGraph(months: MonthCount[]): Graph {
+  const byYear = new Map<string, (number | null)[]>();
+  for (const m of months) {
+    const [y, mm] = m.key.split('-');
+    const row = byYear.get(y!) ?? (new Array(12).fill(null) as (number | null)[]);
+    row[Number(mm) - 1] = m.count;
+    byYear.set(y!, row);
+  }
+  const years = [...byYear.keys()].sort().slice(-8);
+  return {
+    type: 'spark',
+    axis: 'JFMAMJJASOND',
+    rows: years.map((y) => ({
+      label: y,
+      cells: byYear.get(y)!,
+      suffix: num(byYear.get(y)!.reduce((s: number, c) => s + (c ?? 0), 0)),
+    })),
+  };
+}
 
 /**
  * THE HYPE-O-METER. Each technology gets a hype score (0 = fossil, 100 = unbearably
@@ -393,17 +445,17 @@ const SUBSTRATE = new Set(['JavaScript', 'TypeScript', 'shell scripts', 'SQL', '
 /** A funny verdict for where a hype score sits (high→low; last entry is the floor). */
 function hypeNote(h: number): string {
   const tiers: [number, string][] = [
-    [88, 'you put this in your bio'],
-    [78, 'peak hype — the conference talks write themselves'],
-    [66, 'trendy, and smug about it'],
-    [52, 'respectable; nobody argues'],
-    [40, 'nobody’s impressed, nobody’s mad'],
-    [28, 'showing its age at standup'],
-    [16, 'you’re still on THIS?'],
-    [7, 'practically touching grass'],
+    [88, 'it’s in your bio'],
+    [78, 'peak hype, obviously'],
+    [66, 'trendy and smug'],
+    [52, 'respectable pick'],
+    [40, 'nobody cares'],
+    [28, 'aging at standup'],
+    [16, 'still on THIS?'],
+    [7, 'touching grass'],
   ];
   for (const [min, note] of tiers) if (h >= min) return note;
-  return 'fossil fuel — nobody admits to writing it';
+  return 'fossil, unadmitted';
 }
 
 /** Bar colour by hype tier: red-hot at the top, cold blue at the bottom. */
@@ -421,7 +473,7 @@ function rankHypeTechs(techs: { name: string }[]): { name: string; hype: number 
     .map((t) => ({ name: t.name, hype: HYPE[t.name] ?? 50 }))
     .filter((t) => !SUBSTRATE.has(t.name))
     .sort((a, b) => Math.abs(b.hype - 50) - Math.abs(a.hype - 50))
-    .slice(0, 5)
+    .slice(0, 4)
     .sort((a, b) => b.hype - a.hype);
 }
 
@@ -437,33 +489,36 @@ function hypeGraph(ranked: { name: string; hype: number }[], seed: number): Grap
   // suffix leads with the same `NN/100` the real techs use (one consistent scale),
   // then "the ceiling / the floor / where 'normal' sits" spells out that they're
   // reference points, with the rotating joke as a concrete example.
-  const top = { label: '📈', value: 96, color: 'gray', dim: true, suffix: `96/100  scale ref · peak hype, e.g. ${pickVariant([
-    'Rust — your coworker won’t stop bringing it up',
-    'Bun — three benchmarks and a manifesto',
-    'htmx — it’s just HTML, they swear',
-    'Zig — the cult is small and very loud',
+  const top = { label: '📈', value: 96, color: 'gray', dim: true, suffix: `96/100 · ref: ${pickVariant([
+    'Rust hype',
+    'Bun hype',
+    'htmx hype',
+    'Zig hype',
   ], seed, 'hype-top')}` };
-  const grass = { label: '🌿', value: 35, color: 'gray', dim: true, suffix: `35/100  scale ref · a “normal” pick, e.g. ${pickVariant([
-    'Express — boring, balanced, employable',
-    'Postgres — quietly excellent, zero drama',
-    'REST — no GitHub stars, no problems',
-    'cron — it just works, it always worked',
+  const grass = { label: '🌿', value: 35, color: 'gray', dim: true, suffix: `35/100 · ref: ${pickVariant([
+    'Express, boring',
+    'Postgres, calm',
+    'plain REST',
+    'cron, ancient',
   ], seed, 'hype-mid')}` };
-  const bottom = { label: '🦕', value: 5, color: 'gray', dim: true, suffix: `5/100  scale ref · a fossil, e.g. ${pickVariant([
-    'jQuery — load-bearing and immortal',
-    'COBOL — still running a bank, somehow',
-    'Perl — a 2003 script nobody dares delete',
-    'Fortran — older than your parents, still computing',
+  const bottom = { label: '🦕', value: 5, color: 'gray', dim: true, suffix: `5/100 · ref: ${pickVariant([
+    'jQuery, immortal',
+    'COBOL, banking',
+    'Perl, untouched',
+    'Fortran, fossil',
   ], seed, 'hype-bottom')}` };
-  // Real techs from YOUR repo — flagged "← yours" so they're never mistaken for the
-  // three fixed scale anchors above/below them (which are just examples for scale).
-  const techRows = ranked.map((t) => ({ label: t.name, value: t.hype, color: hypeColor(t.hype), suffix: `${t.hype}/100  ${hypeNote(t.hype)}  ← yours` }));
+  // Real techs from YOUR repo — colour + label already sets them apart from the three
+  // fixed gray scale anchors above/below, so no need to spell out "yours" in the text too.
+  const techRows = ranked.map((t) => ({ label: t.name, value: t.hype, color: hypeColor(t.hype), suffix: `${t.hype}/100 ${hypeNote(t.hype)}` }));
   // 🌿 sorts in by hype, so it lands wherever "normal" falls relative to your stack.
   const middle = [...techRows, grass].sort((a, b) => b.value - a.value);
   return {
     type: 'bars',
     barColor: 'yellow',
     labelColor: 'white',
+    // Narrower than the default bar so the caption text — the actual joke — has
+    // room to breathe on a small screen instead of getting truncated away.
+    width: 14,
     rows: [top, ...middle, bottom],
   };
 }
@@ -511,20 +566,20 @@ function buildCandidates(report: AnalysisReport): Candidate[] {
   if (headline) crimeLines.push({ text: headline.roast, color: 'whiteBright', bold: true });
   if (notable.length > 1) {
     crimeLines.push({ text: pickVariant([
-      'Your picks (marked ← yours) on the hype-o-meter. The 📈 🌿 🦕 rows are fixed reference marks, not your stack:',
-      'Where your picks land on the hype curve (← yours). 📈 🌿 🦕 are just the scale, not things you use:',
-      'Your best flex and worst fossil, plotted on hype (← yours). 📈 🌿 🦕 are reference marks only:',
+      'Your stack on the hype-o-meter. 📈 🌿 🦕 are fixed reference marks, not yours:',
+      'Where your picks land on the hype curve. 📈 🌿 🦕 are just the scale:',
+      'Your best flex and worst fossil, on the hype curve. 📈 🌿 🦕 are reference only:',
     ], seed, 'crime-hype'), color: 'gray' });
   } else if (notable.length === 1) {
     crimeLines.push({ text: pickVariant([
-      'Your one notable pick (marked ← yours) on the hype-o-meter. The 📈 🌿 🦕 rows are fixed reference marks, not your stack:',
-      'Where your one notable choice lands on the hype curve (← yours). 📈 🌿 🦕 are just the scale, not things you use:',
+      'Your one notable pick on the hype-o-meter. 📈 🌿 🦕 are reference marks, not yours:',
+      'Where it lands on the hype curve. 📈 🌿 🦕 are just the scale:',
     ], seed, 'crime-hype-1'), color: 'gray' });
   } else if (techs.length > 0) {
     // Everything detected was boring substrate — that IS the joke.
     crimeLines.push({ text: pickVariant([
-      'Nothing over-hyped, nothing fossilised — just the beige substrate everyone runs. Aggressively unremarkable.',
-      'Not one flex, not one fossil. The most disciplined, least interesting stack I have ever been handed.',
+      'Nothing over-hyped, nothing fossilised. Aggressively unremarkable.',
+      'Not one flex, not one fossil. The most disciplined stack I have ever seen.',
     ], seed, 'crime-boring'), dim: true, italic: true });
   }
   push({
@@ -602,6 +657,89 @@ function buildCandidates(report: AnalysisReport): Candidate[] {
 
   // (The tech-stack roasts now open the story inside THE SCENE OF THE CRIME above,
   // and the named stack also rides along in the shareable recap's "Built with:" line.)
+
+  // ── THE FEVER CHART — the repo's pulse over time, and its record months ────
+  // The Wrapped classic: "your busiest month since X". Needs at least half a year of
+  // history to have a pulse worth reading. Weight scales with how good the story is:
+  // an all-time record happening NOW beats an old record beats a flat line.
+  const months = agg.monthlyCommits;
+  if (months.length >= 6) {
+    const count = (i: number) => months[i]!.count;
+    let peakIdx = 0;
+    for (let i = 1; i < months.length; i++) if (count(i) > count(peakIdx)) peakIdx = i;
+    let recentIdx = months.length - 1;
+    while (recentIdx > 0 && count(recentIdx) === 0) recentIdx -= 1;
+    // How far back you must go to find a month at least as busy as the latest one.
+    let sinceIdx = -1;
+    for (let i = recentIdx - 1; i >= 0; i--) if (count(i) >= count(recentIdx)) { sinceIdx = i; break; }
+    const nonZero = months.filter((m) => m.count > 0).map((m) => m.count).sort((a, b) => a - b);
+    const median = nonZero[Math.floor(nonZero.length / 2)] ?? 1;
+    const peak = months[peakIdx]!;
+    const recent = months[recentIdx]!;
+    const monthsSincePeak = months.length - 1 - peakIdx;
+    const spiky = peak.count >= median * 3;
+    // A longer seismograph is a better one — the chart earns its slot with history.
+    const yearBonus = Math.min(10, Math.floor(months.length / 12) * 2);
+    // The series ends at the LAST COMMIT's month, not today — so "happening now" is
+    // only true if that month is this one (or last). A repo dormant since its record
+    // month gets the "died at its peak" framing instead of a false "NOW".
+    const nowKey = new Date(report.repo.generatedAt * 1000).toISOString().slice(0, 7);
+    const [nY, nM] = nowKey.split('-').map(Number) as [number, number];
+    const [rY, rM] = recent.key.split('-').map(Number) as [number, number];
+    const recentIsCurrent = (nY - rY) * 12 + (nM - rM) <= 1;
+
+    const pulseLines: SceneLine[] = [
+      { text: pickVariant([
+        `Peak fever: ${monthLabel(peak.key)} — ${num(peak.count)} commits in a single month. The all-time high, or the worst episode. Same thing.`,
+        `${monthLabel(peak.key)}: ${num(peak.count)} commits. The most feverish month this repo has ever had. I read the chart twice.`,
+        `The record month is ${monthLabel(peak.key)} — ${num(peak.count)} commits. Whatever happened there never fully healed.`,
+      ], seed, 'pulse-peak'), color: 'whiteBright', bold: true },
+    ];
+    let pulseWeight = 38;
+    if (recentIdx === peakIdx && months.length >= 12 && recentIsCurrent) {
+      pulseLines.push({ text: pickVariant([
+        `And it's happening NOW. ${monthLabel(recent.key)} is the busiest month of this repo's entire life. A deadline, a panic, or a personality change.`,
+        `That record month is this one. The chart has never been higher, and neither has anyone's heart rate.`,
+        `The peak is the present. ${monthLabel(recent.key)} outworked every month before it. I'd congratulate you if it didn't look so much like a cry for help.`,
+      ], seed, 'pulse-now'), color: 'yellowBright', italic: true });
+      pulseWeight = 62;
+    } else if (recentIdx === peakIdx && months.length >= 12) {
+      pulseLines.push({ text: pickVariant([
+        `And then — nothing. The busiest month of this repo's life was also its last. It went out at the absolute top, like a firework, or a heart.`,
+        `The record month is where the story stops. Peak output, then silence. Repos rarely get to die at their best; this one did.`,
+        `It burned brightest in ${monthLabel(peak.key)} and never committed again. A supernova with a package.json.`,
+      ], seed, 'pulse-died'), color: 'yellowBright', italic: true });
+      pulseWeight = 56;
+    } else if (sinceIdx >= 0 && recentIdx - sinceIdx >= 12 && recent.count >= 5 && recentIsCurrent) {
+      pulseLines.push({ text: pickVariant([
+        `${monthLabel(recent.key)} logged ${num(recent.count)} commits — the busiest month since ${monthLabel(months[sinceIdx]!.key)}. Something woke this repo up. Or someone.`,
+        `${num(recent.count)} commits in ${monthLabel(recent.key)}: activity unseen since ${monthLabel(months[sinceIdx]!.key)}. The neighbours noticed the lights back on.`,
+        `${monthLabel(recent.key)} hit ${num(recent.count)} commits, a pace last seen in ${monthLabel(months[sinceIdx]!.key)}. The repo lives. Nobody told the backlog.`,
+      ], seed, 'pulse-record'), color: 'yellowBright', italic: true });
+      pulseWeight = 58;
+    } else if (monthsSincePeak >= 6) {
+      const nowShare = Math.round((recent.count / Math.max(1, peak.count)) * 100);
+      pulseLines.push({ text: pickVariant([
+        `That was ${monthsSincePeak} months ago. Current output: ${nowShare}% of peak. The glory days are a tab nobody reopens.`,
+        `The fever broke ${monthsSincePeak} months ago; today runs at ${nowShare}% of it. The repo remembers being loved.`,
+        `${monthsSincePeak} months since the peak, and this month manages ${nowShare}% of it. Retirement, but without the announcement.`,
+      ], seed, 'pulse-decline'), color: 'gray', italic: true });
+      pulseWeight = 48;
+    }
+    pulseLines.push({ text: pickVariant([
+      'The pulse, month by month:',
+      'Every month of this repo’s life, as a heartbeat:',
+      'The full seismograph — brightest cell is the record:',
+    ], seed, 'pulse-cap'), color: 'gray' });
+    push({
+      id: 'pulse',
+      order: 3,
+      weight: pulseWeight + yearBonus + (spiky ? 4 : 0),
+      title: 'THE FEVER CHART',
+      lines: pulseLines,
+      graph: pulseGraph(months),
+    });
+  }
 
   // ── THE RULES OF THE HOUSE — pre-commit hooks, linters, coverage gates ─────
   const rules = find('house-rules');
@@ -1033,7 +1171,9 @@ function leaderboard(authors: AuthorStat[], metric: 'commits' | 'added'): string
     const value =
       metric === 'commits'
         ? `${num(a.commits)} · ${Math.round((a.commits / total) * 100)}%`
-        : `+${compact(a.added)}`;
+        // Deletions ride along so the takers get credit too — removal is the half of
+        // the work an "added" board alone erases.
+        : `+${compact(a.added)} −${compact(a.deleted)}`;
     return `${rank} ${name} ${bar(val(a), max)} ${value}${a.isYou ? '  ← you' : ''}`;
   });
 }
@@ -1062,6 +1202,28 @@ export function buildRecap(report: AnalysisReport): string {
     if (bat.night > 0) parts.push(`${bat.night} night${bat.night === 1 ? '' : 's'}`);
     if (bat.weekend > 0) parts.push(`${bat.weekend} weekend${bat.weekend === 1 ? '' : 's'}`);
     blocks.push(`🦇 Batman: ${bat.name}\n   worked ${parts.join(' & ')} in the dark`);
+  }
+
+  // Team awards — the roles people actually compete for. Each fires only with real
+  // signal (≥3 matching commits), so a quiet repo doesn't hand out hollow medals.
+  const awards: string[] = [];
+  const topBy = (val: (a: AuthorStat) => number): AuthorStat | undefined =>
+    [...agg.topAuthors].sort((x, y) => val(y) - val(x)).find((a) => val(a) > 0);
+  const fixer = topBy((a) => a.fixes);
+  if (fixer && fixer.fixes >= 3) {
+    awards.push(`🚒 Firefighter: ${fixer.name} — ${num(fixer.fixes)} fix commits${fixer.isYou ? '  ← you' : ''}`);
+  }
+  const janitor = topBy((a) => a.refactors);
+  if (janitor && janitor.refactors >= 3) {
+    awards.push(`🧹 Janitor: ${janitor.name} — ${num(janitor.refactors)} refactor commits${janitor.isYou ? '  ← you' : ''}`);
+  }
+  if (awards.length) blocks.push(awards.join('\n'));
+
+  // The record month — the "busiest month since X" flex, when there's enough history.
+  const months = agg.monthlyCommits;
+  if (months.length >= 6) {
+    const peak = months.reduce((b, m) => (m.count > b.count ? m : b), months[0]!);
+    blocks.push(`📈 Peak month: ${monthLabel(peak.key)} — ${num(peak.count)} commits`);
   }
 
   // The stack people actually compare ("oh, you're React + Redux too") — pulled from
