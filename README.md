@@ -2,7 +2,7 @@
 
 # 🎁 git-wrapped
 
-### 🎧 Spotify Wrapped, but it roasts your git repo — narrated by a deeply unimpressed **SUPREME INTELLIGENCE**.
+### 🎧 Spotify Wrapped, but it roasts your git repo, narrated by a deeply unimpressed **SUPREME INTELLIGENCE**.
 
 [![npm version](https://img.shields.io/npm/v/@eliottgdl/git-wrapped?color=cb3837&logo=npm)](https://www.npmjs.com/package/@eliottgdl/git-wrapped)
 [![npm downloads](https://img.shields.io/npm/dm/@eliottgdl/git-wrapped?color=cb3837&logo=npm)](https://www.npmjs.com/package/@eliottgdl/git-wrapped)
@@ -40,8 +40,8 @@ A full-screen, animated recap that walks your repo through the stations of judgm
 | --- | --- |
 | 🏆 **The Scoreboard** | Commits, churn, the raw numbers you can't hide from |
 | 👥 **Power & People** | Who really runs this repo, merged identities and all |
-| 📈 **The Fever Chart** | Your repo's pulse, month by month — and its record ("the busiest month since June 2021") |
-| 🌙 **Your Habits (Concerning)** | Your commit clock — yes, it sees the 2 a.m. commits |
+| 📈 **The Fever Chart** | Your repo's pulse, month by month, plus its record ("the busiest month since June 2021") |
+| 🌙 **Your Habits (Concerning)** | Your commit clock. Yes, it sees the 2 a.m. commits |
 | 🔍 **Commit Message Forensics** | Every `fix`, `wip`, and `asdf` entered into evidence |
 | 🚨 **Evidence of Guilt** | The smells you hoped nobody would `git blame` |
 | 🩸 **Crime Scenes** | Your most haunted files, ranked by how often you "fixed" them |
@@ -53,12 +53,12 @@ It ends with a clipboard-ready recap built for the team channel: commit and line
 
 ## 🔒 No cloud, no key, no network
 
-**Zero** API keys. **Zero** accounts. **Zero** network calls. `git-wrapped` reads your local git history and every roast is templated, deterministic, and generated entirely **offline**. Your code never leaves your machine — the SUPREME INTELLIGENCE judges you *locally*. 🖥️
+**Zero** API keys. **Zero** accounts. **Zero** network calls. `git-wrapped` reads your local git history and every roast is templated, deterministic, and generated entirely **offline**. Your code never leaves your machine. The SUPREME INTELLIGENCE judges you *locally*. 🖥️
 
 ## 🛠️ How it works
 
 - 🧼 A pure `core/` that swears off `process.stdout` and means it.
-- ➗ Every stat is a total function of one normalized `RepoData` — same repo in, same roast out.
+- ➗ Every stat is a total function of one normalized `RepoData`: same repo in, same roast out.
 - 🧬 An identity-resolution pass clusters authors by shared email or name tokens, so `COLAS Alexandre` and `Alexandre Colas` stop being two people.
 - 🎨 The UI is [Ink](https://github.com/vadimdemedes/ink) + React; roasts live co-located with the stats that trigger them.
 
@@ -73,11 +73,11 @@ npm run build      # 📦 compile to dist/
 npm run typecheck  # ✅ tsc --noEmit
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide. Adding a new roast is a two-line change — implement a `Stat`, spread it into the registry, done.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide. Adding a new roast is a two-line change: implement a `Stat`, spread it into the registry, done.
 
 ## 🤝 Contributing
 
-PRs, new roasts, and sharper burns are all welcome. 🎉 Start with [CONTRIBUTING.md](./CONTRIBUTING.md), open an [issue](https://github.com/EliottGand/git-wrapped/issues), and be gentle with the SUPREME INTELLIGENCE — it has feelings, allegedly.
+PRs, new roasts, and sharper burns are all welcome. 🎉 Start with [CONTRIBUTING.md](./CONTRIBUTING.md), open an [issue](https://github.com/EliottGand/git-wrapped/issues), and be gentle with the SUPREME INTELLIGENCE. It has feelings, allegedly.
 
 ## 🧾 An honest opinion of this repository, from the algorithm
 
