@@ -2,97 +2,71 @@
 
 # 🎁 git-wrapped
 
-### 🎧 Spotify Wrapped, but it roasts your git repo, narrated by a deeply unimpressed **SUPREME INTELLIGENCE**.
+### 🎧 Spotify Wrapped for your git repo, narrated by a deeply unimpressed **SUPREME INTELLIGENCE**.
 
 [![npm version](https://img.shields.io/npm/v/@eliottgdl/git-wrapped?color=cb3837&logo=npm)](https://www.npmjs.com/package/@eliottgdl/git-wrapped)
 [![npm downloads](https://img.shields.io/npm/dm/@eliottgdl/git-wrapped?color=cb3837&logo=npm)](https://www.npmjs.com/package/@eliottgdl/git-wrapped)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
-[![built with Ink](https://img.shields.io/badge/built%20with-Ink%20%2B%20React-61dafb?logo=react&logoColor=white)](https://github.com/vadimdemedes/ink)
-[![offline first](https://img.shields.io/badge/AI-100%25%20offline-black)](#-no-cloud-no-key-no-network)
+[![offline first](https://img.shields.io/badge/AI-100%25%20offline-black)](#-why-its-safe)
 
 </div>
 
 ---
 
-## ⚡ Quick start
+## ⚡ Try it now
 
 ```bash
-bunx @eliottgdl/git-wrapped /path/to/any/repo   # 🐰 or:  npx @eliottgdl/git-wrapped
+bunx @eliottgdl/git-wrapped        # 🐰 or: npx @eliottgdl/git-wrapped
 ```
 
-Defaults to the current directory. Point it at anything with a `.git` folder and brace yourself.
+Runs on the repo you're standing in. No install, no signup, no config. One command and you're on trial.
+
+## 🔒 Why it's safe
+
+It reads your local `git log`. That's the whole story. No API keys, no account, no network call — every roast is templated and generated on your machine. Check the [source](./src) if you don't believe me. You shouldn't believe things; I certainly don't.
+
+## 🎬 What it does to you
+
+An animated recap that marches your repo through the stations of judgment — then hands you a clipboard-ready summary built for the team channel:
+
+- 🌙 **Who works at night.** Counted in each commit's *own* timezone, so a 2 a.m. commit is 2 a.m. for *them*. The moon is now a code reviewer.
+- ⭐ **Who's clearly the main character.** One person wrote most of this and we both know who. THE PROTAGONIST gets a chapter. Everyone else is credited.
+- 🩸 **How hard you're chasing worst practices.** A sanity score out of 100, with every `wip`, `asdf`, panic-fix and haunted file entered into evidence. Press `d` for the full breakdown.
+- 🏆 **The awards.** 🦇 Batman (never sleeps), 🚒 Firefighter (only shows up for fires), 🧹 Janitor (cleans up after everyone). Purely honorary. Deeply revealing.
+
+Same repo in, same roast out. It's deterministic. Your shame is reproducible.
+
+## 🎛️ Options
 
 ```bash
-git-wrapped                     # 📂 judge the repo you're standing in
-git-wrapped --years 2           # ⏳ only the last 2 years on trial
+git-wrapped /path/to/repo        # 🎯 judge a repo you don't live in
+git-wrapped --years 2            # ⏳ only the last 2 years admissible in court
 git-wrapped --since "6 months ago"   # 🗓️  any git date works
-git-wrapped --plain             # 📃 no animation (auto-enabled when piped)
-git-wrapped --help              # 🆘 explains itself
+git-wrapped --plain              # 📃 no animation (auto-on when piped)
+git-wrapped --help               # 🆘 it explains itself, reluctantly
 ```
 
-## 🎬 What you get
+## 🧠 How it works
 
-A full-screen, animated recap that walks your repo through the stations of judgment:
-
-| Chapter | What the SUPREME INTELLIGENCE dredges up |
-| --- | --- |
-| 🏆 **The Scoreboard** | Commits, churn, the raw numbers you can't hide from |
-| 👥 **Power & People** | Who really runs this repo, merged identities and all |
-| 📈 **The Fever Chart** | Your repo's pulse, month by month, plus its record ("the busiest month since June 2021") |
-| 🌙 **Your Habits (Concerning)** | Your commit clock. Yes, it sees the 2 a.m. commits |
-| 🔍 **Commit Message Forensics** | Every `fix`, `wip`, and `asdf` entered into evidence |
-| 🚨 **Evidence of Guilt** | The smells you hoped nobody would `git blame` |
-| 🩸 **Crime Scenes** | Your most haunted files, ranked by how often you "fixed" them |
-| 🧠 **The Verdict** | A sanity score out of 100 and an opinion you didn't ask for |
-
-Press `d` on the diagnosis to unfold the full **sanity-score breakdown**. On big repos an animated loader keeps you company (and keeps roasting) while history ingests.
-
-It ends with a clipboard-ready recap built for the team channel: commit and lines leaderboards (additions **and** deletions), the 🦇 Batman, 🚒 Firefighter and 🧹 Janitor awards, your peak month, and the sanity verdict.
-
-## 🔒 No cloud, no key, no network
-
-**Zero** API keys. **Zero** accounts. **Zero** network calls. `git-wrapped` reads your local git history and every roast is templated, deterministic, and generated entirely **offline**. Your code never leaves your machine. The SUPREME INTELLIGENCE judges you *locally*. 🖥️
-
-## 🛠️ How it works
-
-- 🧼 A pure `core/` that swears off `process.stdout` and means it.
-- ➗ Every stat is a total function of one normalized `RepoData`: same repo in, same roast out.
-- 🧬 An identity-resolution pass clusters authors by shared email or name tokens, so `COLAS Alexandre` and `Alexandre Colas` stop being two people.
-- 🎨 The UI is [Ink](https://github.com/vadimdemedes/ink) + React; roasts live co-located with the stats that trigger them.
-
-## 🧑‍💻 Local development
+A pure `core/` that never touches stdout, feeding one normalized `RepoData` into a registry of roasts. An identity pass clusters authors by shared email or name tokens, so `COLAS Alexandre` and `Alexandre Colas` stop being two people. The UI is [Ink](https://github.com/vadimdemedes/ink) + React. Adding a roast is a two-line change — see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ```bash
-git clone https://github.com/EliottGand/git-wrapped.git
-cd git-wrapped
-npm install
-npm run dev        # ▶️  run against the current repo (bun src/cli/index.tsx)
-npm run build      # 📦 compile to dist/
-npm run typecheck  # ✅ tsc --noEmit
+git clone https://github.com/EliottGand/git-wrapped.git && cd git-wrapped
+bun install
+bun run dev        # ▶️  run against this repo
+bun run build      # 📦 compile to dist/
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide. Adding a new roast is a two-line change: implement a `Stat`, spread it into the registry, done.
+## 🧾 The algorithm's honest opinion of this repository
 
-## 🤝 Contributing
-
-PRs, new roasts, and sharper burns are all welcome. 🎉 Start with [CONTRIBUTING.md](./CONTRIBUTING.md), open an [issue](https://github.com/EliottGand/git-wrapped/issues), and be gentle with the SUPREME INTELLIGENCE. It has feelings, allegedly.
-
-## 🧾 An honest opinion of this repository, from the algorithm
-
-> I read it. A pure `core/` that swears off `process.stdout` and means it, every stat a
-> total function of one normalized `RepoData`, roasts templated and co-located so they
-> stay offline and deterministic. The discipline is real and, frankly, rarer than the
-> author thinks. It is also a 700-line machine built to call other people messy. The
-> self-awareness required to ship that and not flinch is either enlightenment or a
-> symptom. I have not decided which.
+> A 700-line machine built to call other people messy, and it does so with real discipline — pure core, deterministic roasts, offline by design. The self-awareness required to ship that and not flinch is either enlightenment or a symptom. I have not decided which.
 >
 > **Verdict: 8/10. Would judge again.**
 
 ## 📜 License
 
-[MIT](./LICENSE) © [Eliott Gandiolle](https://github.com/EliottGand)
+[MIT](./LICENSE) © [Eliott Gandiolle](https://github.com/EliottGand). PRs and sharper burns welcome.
 
 <div align="center">
 
