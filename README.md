@@ -8,7 +8,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@eliottgdl/git-wrapped?color=cb3837&logo=npm)](https://www.npmjs.com/package/@eliottgdl/git-wrapped)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![offline first](https://img.shields.io/badge/AI-100%25%20offline-black)](#-why-its-safe)
+[![offline first](https://img.shields.io/badge/AI-100%25%20offline-black)](#-what-it-touches)
 
 </div>
 
@@ -22,13 +22,13 @@ bunx @eliottgdl/git-wrapped        # 🐰 or: npx @eliottgdl/git-wrapped
 
 Runs on the repo you're standing in. No install, no signup, no config. One command and you're on trial.
 
-## 🔒 Why it's safe
+## 🔒 What it touches
 
-It reads your local `git log`. That's the whole story. No API keys, no account, no network call — every roast is templated and generated on your machine. Check the [source](./src) if you don't believe me. You shouldn't believe things; I certainly don't.
+Your local `git log`. Nothing else. No API keys, no account, no network. The roasts are templated and run entirely on your machine. The judgment is offline. So is the shame.
 
 ## 🎬 What it does to you
 
-An animated recap that marches your repo through the stations of judgment — then hands you a clipboard-ready summary built for the team channel:
+An animated recap that marches your repo through the stations of judgment, then hands you a clipboard-ready summary built for the team channel:
 
 - 🌙 **Who works at night.** Counted in each commit's *own* timezone, so a 2 a.m. commit is 2 a.m. for *them*. The moon is now a code reviewer.
 - ⭐ **Who's clearly the main character.** One person wrote most of this and we both know who. THE PROTAGONIST gets a chapter. Everyone else is credited.
@@ -49,7 +49,7 @@ git-wrapped --help               # 🆘 it explains itself, reluctantly
 
 ## 🧠 How it works
 
-A pure `core/` that never touches stdout, feeding one normalized `RepoData` into a registry of roasts. An identity pass clusters authors by shared email or name tokens, so `COLAS Alexandre` and `Alexandre Colas` stop being two people. The UI is [Ink](https://github.com/vadimdemedes/ink) + React. Adding a roast is a two-line change — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+A pure `core/` that never touches stdout, feeding one normalized `RepoData` into a registry of roasts. An identity pass clusters authors by shared email or name tokens, so `COLAS Alexandre` and `Alexandre Colas` stop being two people. The UI is [Ink](https://github.com/vadimdemedes/ink) + React. Adding a roast is a two-line change; see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ```bash
 git clone https://github.com/EliottGand/git-wrapped.git && cd git-wrapped
@@ -60,7 +60,7 @@ bun run build      # 📦 compile to dist/
 
 ## 🧾 The algorithm's honest opinion of this repository
 
-> A 700-line machine built to call other people messy, and it does so with real discipline — pure core, deterministic roasts, offline by design. The self-awareness required to ship that and not flinch is either enlightenment or a symptom. I have not decided which.
+> A 700-line machine built to call other people messy, and it does so with real discipline: pure core, deterministic roasts, offline by design. The self-awareness required to ship that and not flinch is either enlightenment or a symptom. I have not decided which.
 >
 > **Verdict: 8/10. Would judge again.**
 
