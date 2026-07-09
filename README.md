@@ -8,7 +8,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@eliottgdl/git-wrapped?color=cb3837&logo=npm)](https://www.npmjs.com/package/@eliottgdl/git-wrapped)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![offline first](https://img.shields.io/badge/AI-100%25%20offline-black)](#-what-it-touches)
+[![offline first](https://img.shields.io/badge/AI-100%25%20offline-black)](#-what-it-reads)
 
 </div>
 
@@ -22,7 +22,7 @@ bunx @eliottgdl/git-wrapped        # 🐰 or: npx @eliottgdl/git-wrapped
 
 Runs on the repo you're standing in. No install, no signup, no config. One command and you're on trial.
 
-## 🔒 What it touches
+## 🔒 What it reads
 
 Your local `git log`. Nothing else. No API keys, no account, no network. The roasts are templated and run entirely on your machine. The judgment is offline. So is the shame.
 
